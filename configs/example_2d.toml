@@ -1,0 +1,43 @@
+[experiment]
+name = "dayana_thesis_2d_example"
+manifest = "manifest.csv"
+output_root = "results"
+
+[analysis]
+mode = "2d"
+projection = "none"
+
+[input]
+hoechst_channel = "Hoechst"
+strict_physical_spacing = true
+
+[segmentation]
+backend = "cellpose"
+device = "cuda"
+model = "auto"
+normalize_for_segmentation = true
+percentile_low = 1.0
+percentile_high = 99.8
+diameter_um = 0.0
+tile = true
+batch_size = 0
+
+[measurements]
+morphology = true
+intensity = true
+texture_2d = false
+radial_distribution_2d = false
+
+[qc]
+flag_border_objects = true
+exclude_border_from_default_analysis = true
+save_overlays = true
+overlay_samples_per_group = 5
+random_seed = 20260906
+
+[performance]
+prefetch_fields = 1
+
+[output]
+save_masks = true
+write_csv = true
