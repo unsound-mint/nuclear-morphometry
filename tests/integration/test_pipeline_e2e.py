@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
+import pytest
 import tifffile
 from skimage.draw import disk, ellipse
 
@@ -227,6 +228,195 @@ def test_resume_retries_an_interrupted_running_field(tmp_path: Path) -> None:
     assert resumed_state is not None
     assert resumed_state.fields[interrupted_image_id].status == "complete"
     assert partial_nuclei_path(resumed_dir, interrupted_image_id).exists()
+
+
+def _build_texture_config_and_manifest(tmp_path: Path) -> Path:
+    """Same fields as _build_config_and_manifest but with texture_2d enabled and a
+    non-default distance list, to prove nuclei_table_schema() is genuinely derived
+    from config rather than accidentally matching the (3, 5, 10, 20) default."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    field_a = data_dir / "field_a.tif"
+    _write_synthetic_field(field_a, elongated=False, border_object=False)
+
+    manifest_df = pl.DataFrame(
+        {
+            "image_id": ["SW620_Sort01_low_48h_Field001"],
+            "cell_line": ["SW620"],
+            "sort_id": ["Sort01"],
+            "condition": ["low"],
+            "timepoint": ["48h"],
+            "field": ["001"],
+            "channel": ["Channel:0:0"],
+            "path": [str(field_a)],
+            "scene": [None],
+            "acquisition_batch": [None],
+        }
+    )
+    result = validate_manifest(manifest_df)
+    assert result.is_valid, result.errors
+    manifest_path = tmp_path / "manifest.csv"
+    write_manifest_csv(manifest_df, manifest_path)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f"""
+        [experiment]
+        name = "e2e_texture_test"
+        manifest = "{manifest_path.as_posix()}"
+        output_root = "{(tmp_path / "results").as_posix()}"
+
+        [analysis]
+        mode = "2d"
+        projection = "none"
+
+        [input]
+        hoechst_channel = "Channel:0:0"
+
+        [segmentation]
+        backend = "fixture"
+        normalize_for_segmentation = false
+
+        [measurements]
+        texture_2d = true
+        texture_distances_px = [3, 5]
+
+        [output]
+        save_masks = false
+        write_csv = false
+        """
+    )
+    return config_path
+
+
+def test_end_to_end_run_with_texture_columns(tmp_path: Path) -> None:
+    """Reproduces the class of bug caught in schema.NUCLEI_TABLE_SCHEMA (spec/decision
+    0004): the pipeline's actual per-object row dict must match nuclei_table_schema()'s
+    dynamically-derived texture column set, not just the 4-distance default."""
+    config_path = _build_texture_config_and_manifest(tmp_path)
+
+    run_dir = run_pipeline(config_path)
+
+    nuclei_df = pl.read_parquet(run_dir / "nuclei.parquet")
+    assert nuclei_df.height >= 1
+
+    expected_texture_columns = {
+        f"{prop}_d{distance}"
+        for distance in (3, 5)
+        for prop in ("contrast", "homogeneity", "correlation", "energy", "entropy")
+    }
+    assert expected_texture_columns <= set(nuclei_df.columns)
+    # A distance not requested must NOT appear (proves the schema is config-derived).
+    assert "contrast_d10" not in nuclei_df.columns
+
+    for column in expected_texture_columns:
+        assert nuclei_df[column].null_count() == 0, column
+
+    # finalize_tables' concat must succeed across fields with this schema too.
+    from dayana_nuclei.export import prepare_analysis
+
+    out_path = prepare_analysis(run_dir)
+    assert pl.read_parquet(out_path).height == nuclei_df.height
+
+
+def _write_synthetic_3d_field(path: Path) -> None:
+    shape = (30, 100, 100)
+    zz, yy, xx = np.indices(shape)
+    center = np.array(shape) / 2
+    sphere = ((zz - center[0]) ** 2 + (yy - center[1]) ** 2 + (xx - center[2]) ** 2) <= 8**2
+    image = np.where(sphere, 5000, 0).astype(np.uint16)
+    tifffile.imwrite(
+        path,
+        image,
+        imagej=True,
+        resolution=(1.0 / 0.2, 1.0 / 0.2),
+        metadata={"axes": "ZYX", "spacing": 0.5, "unit": "um"},
+    )
+
+
+def _build_3d_config_and_manifest(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    field_a = data_dir / "field_a.tif"
+    _write_synthetic_3d_field(field_a)
+
+    manifest_df = pl.DataFrame(
+        {
+            "image_id": ["SW620_Sort01_low_48h_Field001"],
+            "cell_line": ["SW620"],
+            "sort_id": ["Sort01"],
+            "condition": ["low"],
+            "timepoint": ["48h"],
+            "field": ["001"],
+            "channel": ["Channel:0:0"],
+            "path": [str(field_a)],
+            "scene": [None],
+            "acquisition_batch": [None],
+        }
+    )
+    result = validate_manifest(manifest_df)
+    assert result.is_valid, result.errors
+    manifest_path = tmp_path / "manifest.csv"
+    write_manifest_csv(manifest_df, manifest_path)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f"""
+        [experiment]
+        name = "e2e_3d_test"
+        manifest = "{manifest_path.as_posix()}"
+        output_root = "{(tmp_path / "results").as_posix()}"
+
+        [analysis]
+        mode = "3d"
+        projection = "none"
+
+        [input]
+        hoechst_channel = "Channel:0:0"
+
+        [segmentation]
+        backend = "fixture"
+        normalize_for_segmentation = false
+
+        [output]
+        save_masks = false
+        write_csv = false
+        """
+    )
+    return config_path
+
+
+def test_end_to_end_3d_run_via_fixture_backend(tmp_path: Path) -> None:
+    """Exercises the 3D pipeline wiring (analysis.mode='3d' -> measure_3d_morphology
+    -> nuclei_table_schema()) without depending on Cellpose-SAM's 3D segmentation
+    quality (see docs/decisions/0008): FixtureSegmenter handles 3D via
+    connectivity=image.ndim, isolating this test to pipeline architecture."""
+    config_path = _build_3d_config_and_manifest(tmp_path)
+
+    run_dir = run_pipeline(config_path)
+
+    run_state = load_run_state(run_dir / "run_state.json")
+    assert run_state is not None
+    assert all(f.status == "complete" for f in run_state.fields.values()), run_state.fields
+
+    nuclei_df = pl.read_parquet(run_dir / "nuclei.parquet")
+    assert nuclei_df.height >= 1
+
+    # 3D-only columns must be populated.
+    assert nuclei_df["volume_um3"].null_count() == 0
+    assert (nuclei_df["volume_um3"] > 0).all()
+    assert nuclei_df["axis_major_um"].null_count() == 0
+    # sphericity can be None for border/too-small objects, but this synthetic
+    # interior sphere must produce a real value.
+    assert nuclei_df["sphericity"].null_count() < nuclei_df.height
+
+    # 2D-only columns must be present (schema is unconditional) but null in 3D mode.
+    assert "circularity" in nuclei_df.columns
+    assert nuclei_df["circularity"].null_count() == nuclei_df.height
+
+    fields_df = pl.read_parquet(run_dir / "fields.parquet")
+    assert fields_df["axes"].to_list() == ["ZYX"]
+    assert fields_df["spacing_z_um"].to_list() == pytest.approx([0.5])
 
 
 def test_prepare_analysis_after_run(tmp_path: Path) -> None:
