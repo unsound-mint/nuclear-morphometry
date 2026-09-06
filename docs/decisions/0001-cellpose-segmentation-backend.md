@@ -75,3 +75,21 @@ implicitly assumes:
 - If a project-specific fine-tuned model is later trained, its path is passed
   directly as `pretrained_model` (CellposeModel accepts a filesystem path), which
   the existing config's `model` field already supports as a non-`"auto"` string.
+
+## Verification status
+
+The backend adapter (`segmentation/cellpose_backend.py`) was verified by direct
+inspection of the installed Cellpose 4.2.1.1 source (`CellposeModel.__init__` and
+`.eval` signatures, the `(masks, flows, styles)` return shape for a single-image
+call, and the existing `torch.no_grad()` wrapping in `cellpose/core.py`), not by
+running a full end-to-end GPU inference in this session. `cpsam_v2` is a ~1.15 GB
+one-time download; three attempts in this session failed with the download's temp
+file disappearing mid-move (`~/.cellpose/models/tmp*` -> final path), with another
+process's own partial download visible in the same shared cache directory at the
+time -- consistent with a concurrency/shared-cache race on this machine (multiple
+Claude Code sessions can run here, see the repository's global engineering rules)
+rather than a code defect. `tests/integration/test_cellpose_gpu.py` exercises real
+inference end-to-end and is marked `@pytest.mark.gpu @pytest.mark.cellpose_model`;
+it skips cleanly until the weights are actually cached (check with
+`ls ~/.cellpose/models/`) and should be run once before trusting this backend on
+real data.
