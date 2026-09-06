@@ -69,13 +69,20 @@ src/dayana_nuclei/
 │
 └── pipeline/
     ├── analyze.py          run_pipeline: manifest -> per-field segment+measure ->
-    │                       atomic commits -> finalized tables
-    └── run_state.py        per-field status tracking + resume logic
+    │                       atomic commits -> finalized tables; _process_field
+    │                       returns (field_row, stage_timings) so benchmark.py
+    │                       can reuse it without duplicating its logic
+    ├── run_state.py        per-field status tracking + resume logic
+    └── benchmark.py        run_benchmark: per-stage wall-clock timing, peak
+                             RSS/CUDA memory, image dims, object counts (spec
+                             32; backs `benchmark` CLI) -- runs the real
+                             pipeline against a scratch directory, discards
+                             masks/tables, keeps only the timing report
 ```
 
 Not yet implemented: `qc/viewer.py` (Phase 7 -- the interactive napari viewer, the intended
-way to actually produce manual annotations), `pipeline/benchmark.py` (spec 32),
-`compare-measurements` (legacy CellProfiler parity).
+way to actually produce manual annotations), `compare-measurements` (legacy CellProfiler
+parity).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 

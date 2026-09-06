@@ -131,10 +131,16 @@ cell line/condition/SortID, self-contained HTML, no report framework), multi-cha
 measurements (spec 25, Phase 8 -- `measurements/lamin.py` shell/core via
 physically-calibrated erosion, `measurements/spatial.py` MitoTracker perinuclear rings via
 nearest-nucleus disambiguation, see `docs/decisions/0009`), 2D radial intensity
-distribution (`measurements/radial.py`, spec 20 -- a from-scratch, boundary-distance-based
-definition, not CellProfiler parity), atomic per-field pipeline execution with resume,
-Parquet export, `prepare-analysis`, provenance, CI, and the full CLI surface (unimplemented
-commands fail loudly rather than silently stubbing).
+distribution (`measurements/radial.py`, spec 20 -- a from-scratch, equal-pixel-count
+boundary-distance-ranked binning, not CellProfiler parity, see `docs/decisions/0010`),
+per-stage performance benchmarking (`pipeline/benchmark.py` + `benchmark` CLI, spec 32 --
+I/O, segmentation normalization, GPU segmentation, mask serialization, morphology,
+intensity, texture, radial distribution, additional channels, QC, row assembly, and output
+timing per field, plus peak RSS/CUDA memory, image dimensions, and object counts; saves a
+JSON report
+and a Parquet table for before/after comparison), atomic per-field pipeline execution with
+resume, Parquet export, `prepare-analysis`, provenance, CI, and the full CLI surface
+(unimplemented commands fail loudly rather than silently stubbing).
 
 **2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
 session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation initially
@@ -152,9 +158,9 @@ is still required before trusting a 3D analysis run's object count or masks.
 
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
 plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
-produce manual annotations), legacy measurement comparison (`compare-measurements`), and
-`benchmark`. These CLI commands currently exit with an explicit "not yet implemented"
-message rather than a bare stub.
+produce manual annotations) and legacy measurement comparison (`compare-measurements`).
+These CLI commands currently exit with an explicit "not yet implemented" message rather
+than a bare stub.
 `measurements.texture_distances_um` (physical-scale texture mode) is config-valid but not
 yet wired into the pipeline (`run_pipeline` raises explaining why — cross-field calibration
 consistency needs solving first); use `texture_distances_px` for now.

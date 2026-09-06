@@ -199,6 +199,24 @@ intended way to actually produce manual annotations by clicking through fields â
 currently exits with an explicit "not yet implemented" message naming the spec section that
 will implement it, rather than doing nothing silently.
 
+## Performance benchmarking
+
+```bash
+uv run dayana-nuclei benchmark configs/example_3d.toml [--limit 5] [--output path.json]
+```
+
+Runs the real pipeline (same code path as `run`, model loaded once) against the config's
+manifest, but writes to a scratch directory instead of `results/` â€” a benchmark measures
+timing, it does not produce an analysis run to keep. Reports, per field: wall-clock time for
+I/O, segmentation normalization, GPU segmentation, mask serialization, morphology,
+intensity, texture, radial distribution, additional channels, QC, row assembly, and
+Parquet output, plus
+image dimensions, object count, and total time; and for the whole run: peak process RSS and
+peak CUDA memory (0.0 if CUDA is available but unused, `null` if no CUDA device is present).
+Saves a full JSON report and a flat per-field Parquet table (same base name) under
+`<output_root>/benchmarks/` by default, for before/after comparison across code or config
+changes (spec section 32).
+
 ## Exporting tables
 
 ```bash

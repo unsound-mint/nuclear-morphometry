@@ -14,6 +14,8 @@ import json
 import logging
 import secrets
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -88,6 +90,23 @@ def _run_dir_for(config: Config, run_id: str) -> Path:
     return config.experiment.output_root / run_id
 
 
+@contextmanager
+def _timed_stage(stage_timings: dict[str, float], key: str) -> Iterator[None]:
+    """Accumulate wall time spent in the block into ``stage_timings[key]``.
+
+    Runs unconditionally around each stage (spec section 32's per-stage
+    benchmark), including ones a config disables (e.g. mask serialization),
+    so every key is always present with a real value -- 0.0 for a skipped
+    stage, never a missing key.
+    """
+    t = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - t
+        stage_timings[key] = stage_timings.get(key, 0.0) + elapsed
+
+
 def _process_field(
     *,
     config: Config,
@@ -97,78 +116,95 @@ def _process_field(
     channels: dict[str, ImageSource],
     segmenter: Segmenter,
     nuclei_schema: dict[str, Any],
-) -> None:
+) -> tuple[dict[str, Any], dict[str, float]]:
+    """Process one field end-to-end; returns ``(field_row, stage_timings)``
+    so `pipeline.benchmark` can report per-stage wall-clock timings (spec
+    section 32) and per-field metadata without duplicating this function's
+    logic or re-reading its own Parquet output back. Production callers
+    (`run_pipeline`) discard the return value; the timer overhead is
+    negligible next to the I/O and segmentation work it wraps.
+    """
     hoechst_source = channels[config.input.hoechst_channel]
     t0 = time.perf_counter()
+    stage_timings: dict[str, float] = {}
 
-    volume = load_channel_volume(
-        hoechst_source,
-        mode=config.analysis.mode,
-        projection=config.analysis.projection,
-        specific_plane=config.analysis.specific_plane,
-    )
-
-    seg_input = (
-        normalize_percentile(
-            volume.data,
-            percentile_low=config.segmentation.percentile_low,
-            percentile_high=config.segmentation.percentile_high,
+    with _timed_stage(stage_timings, "io_s"):
+        volume = load_channel_volume(
+            hoechst_source,
+            mode=config.analysis.mode,
+            projection=config.analysis.projection,
+            specific_plane=config.analysis.specific_plane,
         )
-        if config.segmentation.normalize_for_segmentation
-        else volume.data
-    )
+
+    with _timed_stage(stage_timings, "segmentation_normalization_s"):
+        seg_input = (
+            normalize_percentile(
+                volume.data,
+                percentile_low=config.segmentation.percentile_low,
+                percentile_high=config.segmentation.percentile_high,
+            )
+            if config.segmentation.normalize_for_segmentation
+            else volume.data
+        )
+
     t_seg_start = time.perf_counter()
     result = segmenter.segment(seg_input, volume.spacing)
     segmentation_runtime_s = time.perf_counter() - t_seg_start
+    stage_timings["segmentation_s"] = segmentation_runtime_s
 
     mask_path: Path | None = None
-    if config.output.save_masks:
-        mask_path = mask_path_for(run_dir, image_id)
-        save_label_mask(
-            result.labels,
-            mask_path,
-            volume.spacing,
-            volume.axes,
-            compress=config.output.compress_masks,
-        )
+    with _timed_stage(stage_timings, "mask_serialization_s"):
+        if config.output.save_masks:
+            mask_path = mask_path_for(run_dir, image_id)
+            save_label_mask(
+                result.labels,
+                mask_path,
+                volume.spacing,
+                volume.axes,
+                compress=config.output.compress_masks,
+            )
 
     morphologies: list[Nucleus2DMorphology] | list[Nucleus3DMorphology]
-    if volume.axes == "YX":
-        morphologies = measure_2d_morphology(result.labels, volume.spacing)
-    else:
-        morphologies = measure_3d_morphology(result.labels, volume.spacing)
+    with _timed_stage(stage_timings, "morphology_s"):
+        if volume.axes == "YX":
+            morphologies = measure_2d_morphology(result.labels, volume.spacing)
+        else:
+            morphologies = measure_3d_morphology(result.labels, volume.spacing)
 
     # Always the original source channel, never seg_input (spec 13.3, 18): the
     # segmentation-normalized copy exists only to feed the segmenter.
     intensity_by_object: dict[int, dict[str, Any]] = {}
-    if config.measurements.intensity:
-        intensity_by_object = {
-            r.object_number: r.model_dump(exclude={"object_number"})
-            for r in measure_intensity(result.labels, volume.data)
-        }
+    with _timed_stage(stage_timings, "intensity_s"):
+        if config.measurements.intensity:
+            intensity_by_object = {
+                r.object_number: r.model_dump(exclude={"object_number"})
+                for r in measure_intensity(result.labels, volume.data)
+            }
 
     texture_by_object: dict[int, dict[str, Any]] = {}
-    if config.measurements.texture_2d and volume.axes == "YX":
-        texture_by_object = {
-            r.object_number: r.model_dump(exclude={"object_number"})
-            for r in measure_texture_2d(
-                result.labels,
-                volume.data,
-                distances_px=list(config.measurements.texture_distances_px),
-                gray_levels=config.measurements.gray_levels,
-            )
-        }
+    with _timed_stage(stage_timings, "texture_s"):
+        if config.measurements.texture_2d and volume.axes == "YX":
+            texture_by_object = {
+                r.object_number: r.model_dump(exclude={"object_number"})
+                for r in measure_texture_2d(
+                    result.labels,
+                    volume.data,
+                    distances_px=list(config.measurements.texture_distances_px),
+                    gray_levels=config.measurements.gray_levels,
+                )
+            }
 
     radial_by_object: dict[int, dict[str, Any]] = {}
-    if config.measurements.radial_distribution_2d and volume.axes == "YX":
-        radial_by_object = {
-            r.object_number: r.model_dump(exclude={"object_number"})
-            for r in measure_radial_distribution_2d(
-                result.labels,
-                volume.data,
-                radial_bins=config.measurements.radial_bins,
-            )
-        }
+    with _timed_stage(stage_timings, "radial_distribution_s"):
+        if config.measurements.radial_distribution_2d and volume.axes == "YX":
+            radial_by_object = {
+                r.object_number: r.model_dump(exclude={"object_number"})
+                for r in measure_radial_distribution_2d(
+                    result.labels,
+                    volume.data,
+                    radial_bins=config.measurements.radial_bins,
+                )
+            }
 
     # Additional channels (spec 25): always reuse result.labels, the
     # Hoechst-derived mask -- never re-segmented. A channel missing for this
@@ -176,83 +212,92 @@ def _process_field(
     # entries here; nuclei_schema still declares its columns, so those rows
     # get null for them rather than breaking the run's shared schema.
     additional_by_object: dict[int, dict[str, Any]] = {}
-    for entry in config.measurements.additional_channels:
-        channel_source = channels.get(entry.channel)
-        if channel_source is None:
-            continue
-        channel_volume = load_channel_volume(
-            channel_source,
-            mode=config.analysis.mode,
-            projection=config.analysis.projection,
-            specific_plane=config.analysis.specific_plane,
-        )
-        if channel_volume.data.shape != result.labels.shape:
-            raise ValueError(
-                f"Additional channel {entry.channel!r} for {image_id!r} has shape "
-                f"{channel_volume.data.shape}, which does not match the Hoechst-"
-                f"derived segmentation shape {result.labels.shape}. The nuclear mask "
-                f"cannot be reused for a differently-shaped channel (spec 25)."
+    with _timed_stage(stage_timings, "additional_channels_s"):
+        for entry in config.measurements.additional_channels:
+            channel_source = channels.get(entry.channel)
+            if channel_source is None:
+                continue
+            channel_volume = load_channel_volume(
+                channel_source,
+                mode=config.analysis.mode,
+                projection=config.analysis.projection,
+                specific_plane=config.analysis.specific_plane,
             )
-        if entry.kind == "nuclear":
-            channel_results: list[Any] = measure_intensity(result.labels, channel_volume.data)
-        elif entry.kind == "lamin_shell_core":
-            assert entry.shell_width_um is not None  # enforced by config validation
-            channel_results = measure_lamin_shell_core(
-                result.labels,
-                channel_volume.data,
-                volume.spacing,
-                shell_width_um=entry.shell_width_um,
-            )
-        else:  # "mitotracker_rings"
-            assert entry.near_ring_um is not None and entry.far_ring_um is not None
-            channel_results = measure_perinuclear_rings(
-                result.labels,
-                channel_volume.data,
-                volume.spacing,
-                near_ring_um=entry.near_ring_um,
-                far_ring_um=entry.far_ring_um,
-            )
-        for r in channel_results:
-            values = {
-                f"{entry.prefix}_{k}": v for k, v in r.model_dump(exclude={"object_number"}).items()
-            }
-            additional_by_object.setdefault(r.object_number, {}).update(values)
+            if channel_volume.data.shape != result.labels.shape:
+                raise ValueError(
+                    f"Additional channel {entry.channel!r} for {image_id!r} has shape "
+                    f"{channel_volume.data.shape}, which does not match the Hoechst-"
+                    f"derived segmentation shape {result.labels.shape}. The nuclear mask "
+                    f"cannot be reused for a differently-shaped channel (spec 25)."
+                )
+            if entry.kind == "nuclear":
+                channel_results: list[Any] = measure_intensity(result.labels, channel_volume.data)
+            elif entry.kind == "lamin_shell_core":
+                assert entry.shell_width_um is not None  # enforced by config validation
+                channel_results = measure_lamin_shell_core(
+                    result.labels,
+                    channel_volume.data,
+                    volume.spacing,
+                    shell_width_um=entry.shell_width_um,
+                )
+            else:  # "mitotracker_rings"
+                assert entry.near_ring_um is not None and entry.far_ring_um is not None
+                channel_results = measure_perinuclear_rings(
+                    result.labels,
+                    channel_volume.data,
+                    volume.spacing,
+                    near_ring_um=entry.near_ring_um,
+                    far_ring_um=entry.far_ring_um,
+                )
+            for r in channel_results:
+                values = {
+                    f"{entry.prefix}_{k}": v
+                    for k, v in r.model_dump(exclude={"object_number"}).items()
+                }
+                additional_by_object.setdefault(r.object_number, {}).update(values)
 
     metadata = hoechst_source.metadata
     nuclei_rows: list[dict[str, Any]] = []
     for morph in morphologies:
-        qc = compute_object_qc(
-            touches_border=morph.touches_border,
-            flag_border_objects=config.qc.flag_border_objects,
-            exclude_border_from_default=config.qc.exclude_border_from_default_analysis,
-        )
-        nuclei_rows.append(
-            {
-                "run_id": run_id,
-                "image_id": image_id,
-                "object_number": morph.object_number,
-                "cell_line": metadata.cell_line,
-                "sort_id": metadata.sort_id,
-                "condition": metadata.condition,
-                "timepoint": metadata.timepoint,
-                "field": metadata.field,
-                "acquisition_batch": metadata.acquisition_batch,
-                "source_path": str(hoechst_source.path),
-                "scene": str(hoechst_source.scene) if hoechst_source.scene is not None else None,
-                "mask_path": str(mask_path) if mask_path is not None else None,
-                **morph.model_dump(exclude={"object_number"}),
-                **intensity_by_object.get(morph.object_number, {}),
-                **texture_by_object.get(morph.object_number, {}),
-                **radial_by_object.get(morph.object_number, {}),
-                **additional_by_object.get(morph.object_number, {}),
-                **qc.model_dump(),
-            }
-        )
-    nuclei_df = pl.DataFrame(nuclei_rows, schema=nuclei_schema)
-    write_partial_table(nuclei_df, partial_nuclei_path(run_dir, image_id))
+        with _timed_stage(stage_timings, "qc_s"):
+            qc = compute_object_qc(
+                touches_border=morph.touches_border,
+                flag_border_objects=config.qc.flag_border_objects,
+                exclude_border_from_default=config.qc.exclude_border_from_default_analysis,
+            )
+        with _timed_stage(stage_timings, "row_assembly_s"):
+            nuclei_rows.append(
+                {
+                    "run_id": run_id,
+                    "image_id": image_id,
+                    "object_number": morph.object_number,
+                    "cell_line": metadata.cell_line,
+                    "sort_id": metadata.sort_id,
+                    "condition": metadata.condition,
+                    "timepoint": metadata.timepoint,
+                    "field": metadata.field,
+                    "acquisition_batch": metadata.acquisition_batch,
+                    "source_path": str(hoechst_source.path),
+                    "scene": (
+                        str(hoechst_source.scene) if hoechst_source.scene is not None else None
+                    ),
+                    "mask_path": str(mask_path) if mask_path is not None else None,
+                    **morph.model_dump(exclude={"object_number"}),
+                    **intensity_by_object.get(morph.object_number, {}),
+                    **texture_by_object.get(morph.object_number, {}),
+                    **radial_by_object.get(morph.object_number, {}),
+                    **additional_by_object.get(morph.object_number, {}),
+                    **qc.model_dump(),
+                }
+            )
+
+    with _timed_stage(stage_timings, "output_s"):
+        nuclei_df = pl.DataFrame(nuclei_rows, schema=nuclei_schema)
+        write_partial_table(nuclei_df, partial_nuclei_path(run_dir, image_id))
 
     # Always the original source channel (spec 21), never seg_input.
-    image_qc_metrics = compute_image_qc_metrics(volume.data, result.labels)
+    with _timed_stage(stage_timings, "qc_s"):
+        image_qc_metrics = compute_image_qc_metrics(volume.data, result.labels)
 
     total_runtime_s = time.perf_counter() - t0
     field_row = {
@@ -278,7 +323,15 @@ def _process_field(
         "total_runtime_s": total_runtime_s,
         **image_qc_metrics,
     }
-    write_partial_table(pl.DataFrame([field_row]), partial_fields_path(run_dir, image_id))
+    with _timed_stage(stage_timings, "output_s"):
+        write_partial_table(pl.DataFrame([field_row]), partial_fields_path(run_dir, image_id))
+
+    # Computed last so it covers the whole function, including the final
+    # write above -- deliberately not the same value as field_row's
+    # "total_runtime_s" column (a pre-existing, unchanged column defined at
+    # the point just before that write); this one is benchmark-only.
+    stage_timings["total_s"] = time.perf_counter() - t0
+    return field_row, stage_timings
 
 
 def run_pipeline(

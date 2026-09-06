@@ -11,6 +11,7 @@ import polars as pl
 import typer
 
 from dayana_nuclei import provenance as prov
+from dayana_nuclei.config import load_config
 from dayana_nuclei.export import prepare_analysis as _prepare_analysis
 from dayana_nuclei.io.manifest import (
     build_manifest,
@@ -19,6 +20,7 @@ from dayana_nuclei.io.manifest import (
     write_manifest_csv,
 )
 from dayana_nuclei.pipeline.analyze import run_pipeline
+from dayana_nuclei.pipeline.benchmark import run_benchmark
 from dayana_nuclei.segmentation import validation as seg_validation
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -245,11 +247,52 @@ def finalize_run(
 def benchmark(
     config: Annotated[Path, typer.Argument(exists=True)],
     limit: Annotated[int | None, typer.Option("--limit")] = None,
+    output: Annotated[Path | None, typer.Option("--output")] = None,
 ) -> None:
-    """Per-stage performance benchmark (spec section 32)."""
-    _not_yet_implemented(
-        "benchmark", "Planned for the production-hardening phase (spec section 32)."
-    )
+    """Per-stage performance benchmark: I/O, segmentation, morphology,
+    intensity, texture, QC, output timing plus peak RSS/CUDA memory, object
+    counts, and image dimensions (spec section 32). Runs the real pipeline
+    against a scratch directory -- masks/tables are not kept, only timings.
+    """
+    report = run_benchmark(config, limit=limit)
+
+    if output is None:
+        loaded_config, _ = load_config(config)
+        output_dir = loaded_config.experiment.output_root / "benchmarks"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        stamp = report.generated_at.strftime("%Y-%m-%dT%H%M%SZ")
+        output = output_dir / f"{stamp}_{config.stem}.json"
+    else:
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+    output.write_text(report.model_dump_json(indent=2))
+
+    parquet_path = output.with_suffix(".parquet")
+    rows = [
+        {
+            "image_id": f.image_id,
+            "axes": f.axes,
+            "shape": str(f.shape),
+            "object_count": f.object_count,
+            "segmentation_backend": f.segmentation_backend,
+            "segmentation_model_id": f.segmentation_model_id,
+            **f.stage_timings.model_dump(),
+        }
+        for f in report.fields
+    ]
+    pl.DataFrame(rows).write_parquet(parquet_path)
+
+    typer.echo(f"Benchmark report: {output}")
+    typer.echo(f"Benchmark table: {parquet_path}")
+    for f in report.fields:
+        typer.echo(
+            f"  {f.image_id}: {f.object_count} objects, shape {f.shape}, "
+            f"total {f.stage_timings.total_s:.3f}s "
+            f"(segmentation {f.stage_timings.segmentation_s:.3f}s)"
+        )
+    typer.echo(f"Peak RSS: {report.peak_rss_kb / 1024:.1f} MB")
+    if report.peak_cuda_memory_mb is not None:
+        typer.echo(f"Peak CUDA memory: {report.peak_cuda_memory_mb:.1f} MB")
 
 
 @app.command("validate-segmentation")
