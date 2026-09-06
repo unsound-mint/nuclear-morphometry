@@ -136,6 +136,12 @@ def test_benchmark_reports_stage_timings_and_metadata(tmp_path: Path) -> None:
         assert field.stage_timings.mask_serialization_s >= 0.0
         # total_s covers strictly more work than any single stage.
         assert field.stage_timings.total_s >= field.stage_timings.segmentation_s
+        # The stage breakdown must account for the whole: a future stage
+        # added to _process_field without a _timed_stage wrapper would
+        # silently vanish from every field except total_s.
+        timings = field.stage_timings.model_dump()
+        stage_sum = sum(v for k, v in timings.items() if k != "total_s")
+        assert stage_sum == pytest.approx(field.stage_timings.total_s, abs=0.01)
 
     # A benchmark run is a timing measurement, not a kept analysis run:
     # run_benchmark must never create the config's output_root at all.
@@ -155,8 +161,13 @@ def test_benchmark_handles_zero_object_field(tmp_path: Path) -> None:
 
     assert len(report.fields) == 3
     blank = next(f for f in report.fields if f.object_count == 0)
-    assert blank.stage_timings.qc_s >= 0.0
-    assert blank.stage_timings.row_assembly_s >= 0.0
+    # row_assembly_s is only ever set inside the per-object loop, so it must
+    # be exactly 0.0 when that loop never ran -- the pydantic construction
+    # succeeding is the real regression check; this pins what it succeeds
+    # with. qc_s also accumulates the unconditional image-level QC call
+    # outside the loop, so it stays real/positive even for zero objects.
+    assert blank.stage_timings.row_assembly_s == 0.0
+    assert blank.stage_timings.qc_s > 0.0
     assert blank.stage_timings.total_s > 0.0
 
 
