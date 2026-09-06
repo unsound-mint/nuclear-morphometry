@@ -46,7 +46,7 @@ from dayana_nuclei.pipeline.run_state import (
 from dayana_nuclei.provenance import build_provenance, current_git_commit, finalize_provenance
 from dayana_nuclei.qc.flags import compute_object_qc
 from dayana_nuclei.schema import NUCLEI_TABLE_SCHEMA
-from dayana_nuclei.segmentation.base import Segmenter, SegmenterUnavailableError
+from dayana_nuclei.segmentation.base import Segmenter
 from dayana_nuclei.segmentation.fixture import FixtureSegmenter
 from dayana_nuclei.segmentation.normalize import normalize_percentile
 
@@ -59,14 +59,21 @@ def generate_run_id(*, git_commit: str | None) -> str:
     return f"{timestamp}_{suffix}"
 
 
-def build_segmenter(config: Config) -> Segmenter:
+def build_segmenter(config: Config, *, allow_unvalidated_model: bool = False) -> Segmenter:
     if config.segmentation.backend == "fixture":
         return FixtureSegmenter()
-    raise SegmenterUnavailableError(
-        'segmentation.backend = "cellpose" is not yet implemented in this build '
-        "(see docs/decisions/0001-cellpose-segmentation-backend.md). Use "
-        'segmentation.backend = "fixture" to exercise the pipeline architecture '
-        "without a learned segmentation model."
+
+    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+
+    seg = config.segmentation
+    return CellposeSegmenter(
+        model=seg.model,
+        device=seg.device,
+        diameter_um=seg.diameter_um,
+        use_anisotropy=seg.three_d.use_anisotropy,
+        flow3d_smooth=seg.three_d.flow3d_smooth,
+        batch_size=seg.batch_size,
+        allow_unvalidated_model=allow_unvalidated_model,
     )
 
 
@@ -180,7 +187,11 @@ def _process_field(
 
 
 def run_pipeline(
-    config_path: Path, *, resume_run_dir: Path | None = None, force: bool = False
+    config_path: Path,
+    *,
+    resume_run_dir: Path | None = None,
+    force: bool = False,
+    allow_unvalidated_model: bool = False,
 ) -> Path:
     config, config_hash = load_config(config_path)
 
@@ -245,7 +256,7 @@ def run_pipeline(
     setup_logging(run_dir)
     save_run_state(run_dir / "run_state.json", run_state)
 
-    segmenter = build_segmenter(config)
+    segmenter = build_segmenter(config, allow_unvalidated_model=allow_unvalidated_model)
 
     for image_id in incomplete_image_ids(run_state):
         mark_running(run_state, image_id)

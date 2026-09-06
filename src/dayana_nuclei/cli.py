@@ -138,12 +138,22 @@ def manifest_validate(manifest: Annotated[Path, typer.Argument(exists=True)]) ->
     typer.echo(f"{manifest} is valid ({df.height} row(s)).")
 
 
+_ALLOW_UNVALIDATED_MODEL_HELP = (
+    'Allow segmentation.model = "auto" to resolve to the unvalidated Cellpose-SAM '
+    "default (spec 11.1). For architecture/demo testing only -- never for results "
+    "you intend to report."
+)
+
+
 @app.command()
 def run(
     config: Annotated[Path, typer.Argument(exists=True)],
+    allow_unvalidated_model: Annotated[
+        bool, typer.Option("--allow-unvalidated-model", help=_ALLOW_UNVALIDATED_MODEL_HELP)
+    ] = False,
 ) -> None:
     """Run the full pipeline for a config (spec section 30)."""
-    run_dir = run_pipeline(config)
+    run_dir = run_pipeline(config, allow_unvalidated_model=allow_unvalidated_model)
     typer.echo(f"Run complete: {run_dir}")
 
 
@@ -151,13 +161,21 @@ def run(
 def resume(
     run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     force: Annotated[bool, typer.Option("--force")] = False,
+    allow_unvalidated_model: Annotated[
+        bool, typer.Option("--allow-unvalidated-model", help=_ALLOW_UNVALIDATED_MODEL_HELP)
+    ] = False,
 ) -> None:
     """Resume an interrupted run, skipping already-completed fields (spec section 33)."""
     config_path = run_dir / "config.toml"
     if not config_path.exists():
         typer.echo(f"{config_path} not found; cannot resume {run_dir}.", err=True)
         raise typer.Exit(code=1)
-    resumed_dir = run_pipeline(config_path, resume_run_dir=run_dir, force=force)
+    resumed_dir = run_pipeline(
+        config_path,
+        resume_run_dir=run_dir,
+        force=force,
+        allow_unvalidated_model=allow_unvalidated_model,
+    )
     typer.echo(f"Resume complete: {resumed_dir}")
 
 
