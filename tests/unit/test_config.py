@@ -45,6 +45,20 @@ def test_texture_scale_modes_are_mutually_exclusive() -> None:
         Config.model_validate(data)
 
 
+def test_cellpose_backend_rejects_disabled_normalization() -> None:
+    data = _base_dict()
+    data["segmentation"] = {"backend": "cellpose", "normalize_for_segmentation": False}
+    with pytest.raises(ValidationError, match="normalize_for_segmentation"):
+        Config.model_validate(data)
+
+
+def test_fixture_backend_allows_disabled_normalization() -> None:
+    data = _base_dict()
+    data["segmentation"] = {"backend": "fixture", "normalize_for_segmentation": False}
+    config = Config.model_validate(data)
+    assert config.segmentation.normalize_for_segmentation is False
+
+
 def test_3d_config_alias_and_defaults() -> None:
     data = _base_dict()
     data["analysis"] = {"mode": "3d"}

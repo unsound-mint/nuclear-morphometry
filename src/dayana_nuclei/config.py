@@ -160,6 +160,29 @@ class Config(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_cellpose_requires_normalization(self) -> Config:
+        if (
+            self.segmentation.backend == "cellpose"
+            and not self.segmentation.normalize_for_segmentation
+        ):
+            raise ValueError(
+                'segmentation.backend = "cellpose" requires '
+                "segmentation.normalize_for_segmentation = true. CellposeSegmenter "
+                "always calls Cellpose's eval() with normalize=False, trusting "
+                "segmentation.normalize.normalize_percentile (invoked by the pipeline) "
+                "to have already rescaled the image -- it has no code path that "
+                "normalizes raw sensor-range data itself. Disabling pipeline "
+                "normalization for this backend would silently feed raw, "
+                "un-normalized intensities to the model (empirically confirmed this "
+                "produces severe segmentation errors in 3D; see "
+                "docs/decisions/0008-cellpose-3d-oversegmentation.md). Set "
+                "segmentation.normalize_for_segmentation = true, or switch "
+                'segmentation.backend to "fixture" if disabling normalization is '
+                "genuinely intended (Otsu thresholding is scale-invariant)."
+            )
+        return self
+
 
 def load_config(path: Path) -> tuple[Config, str]:
     """Load and validate a TOML config file.

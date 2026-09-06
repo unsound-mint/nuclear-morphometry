@@ -139,6 +139,9 @@ installed Cellpose version's API and why `model = "auto"` requires an explicit o
 rather than resolving silently.
 
 2D Cellpose-SAM segmentation is verified working end-to-end on real GPU hardware. 3D mode
-runs without error but showed severe over-segmentation on synthetic test volumes — see
-`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a 3D run's object count
-until it has been checked with `validate-segmentation` against real reference masks.
+initially showed severe over-segmentation on synthetic test volumes; this was traced to a
+real normalization-bypass bug (now rejected at config validation, see
+`Config._check_cellpose_requires_normalization`) rather than a genuine 3D limitation for
+realistic signal — see `docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a
+3D run's object count until it has been checked with `validate-segmentation` against real
+reference masks.

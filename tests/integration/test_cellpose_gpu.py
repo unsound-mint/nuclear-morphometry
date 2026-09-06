@@ -113,16 +113,20 @@ def _synthetic_3d_sphere() -> np.ndarray:
 def test_cellpose_3d_inference_runs_and_returns_correct_shape() -> None:
     """Mechanics only, per this file's stated scope -- NOT a quality check.
 
-    A single synthetic sphere through do_3D=True was empirically found (this
-    build session) to over-segment severely with cpsam_v2 -- see
-    docs/decisions/0008-cellpose-3d-oversegmentation.md. This test therefore
-    only asserts the adapter drives the 3D API correctly (right shape, right
-    dtype, at least one object, z_axis passed so it doesn't raise) -- it does
-    NOT assert a specific object count. Real 3D segmentation quality must be
-    established via `validate-segmentation` against a real reference mask set
-    (spec section 14) before trusting any 3D result.
+    Normalizes the input first, matching what `pipeline/analyze.py` always does
+    before calling `segment()` in production. A previous version of this test
+    called `segment()` directly on un-normalized data and found severe
+    over-segmentation; that was traced to the missing normalization step, not a
+    genuine 3D limitation -- see
+    docs/decisions/0008-cellpose-3d-oversegmentation.md. This test still does
+    NOT assert a specific object count for this hard-edged binary synthetic
+    sphere (which itself remains an unexplained edge case even normalized).
+    Real 3D segmentation quality must be established via `validate-segmentation`
+    against a real reference mask set (spec section 14) before trusting any 3D
+    result.
     """
     from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+    from dayana_nuclei.segmentation.normalize import normalize_percentile
 
     segmenter = CellposeSegmenter(
         model="cpsam_v2",
@@ -133,8 +137,11 @@ def test_cellpose_3d_inference_runs_and_returns_correct_shape() -> None:
         batch_size=0,
     )
     spacing = PhysicalSpacing(x_um=0.2, y_um=0.2, z_um=0.2)
+    normalized = normalize_percentile(
+        _synthetic_3d_sphere(), percentile_low=1.0, percentile_high=99.8
+    )
 
-    result = segmenter.segment(_synthetic_3d_sphere(), spacing)
+    result = segmenter.segment(normalized, spacing)
 
     assert result.labels.shape == (40, 100, 100)
     assert np.issubdtype(result.labels.dtype, np.integer)

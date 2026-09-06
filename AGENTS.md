@@ -124,12 +124,18 @@ export, `prepare-analysis`, provenance, and the full CLI surface (unimplemented 
 loudly rather than silently stubbing).
 
 **2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
-session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation runs without
-error but showed severe over-segmentation (25-434 spurious objects for a single synthetic
-sphere) in this session's testing** — see
-`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a 3D analysis run's object
-count or masks until `validate-segmentation` has been run against a real reference mask set
-(spec section 14); this is a segmentation-model-quality question, not a pipeline bug.
+session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation initially
+showed severe over-segmentation (25-434 spurious objects for a single synthetic sphere);
+this was traced to a real bug** (un-normalized input reaching Cellpose, since
+`CellposeSegmenter` always calls `eval(normalize=False)` trusting the pipeline to have
+normalized first) **and is now fixed at two layers**: `Config` rejects
+`backend = "cellpose"` with `normalize_for_segmentation = false` outright, and the
+realistic-signal synthetic case (smoothly-varying intensity + noise, not a hard binary
+edge) segments correctly once normalized. Two pathological binary-edge synthetic shapes
+still fragment unexplained, but do not resemble real fluorescence signal — see
+`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Confidence in 3D is higher than
+before, but `validate-segmentation` against a real reference mask set (spec section 14)
+is still required before trusting a 3D analysis run's object count or masks.
 
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
 plan): segmentation validation tooling (`validate-segmentation`), legacy measurement
