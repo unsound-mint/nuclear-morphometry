@@ -180,10 +180,24 @@ never mutate `nuclei.parquet` — see `docs/measurement-dictionary.md`. Image-le
 (intensity range, saturation fraction, a focus/blur proxy, occupied fraction) are already
 computed into every run's `fields.parquet` (spec section 21).
 
+A static QC report (spec section 24) is generated with:
+
+```bash
+uv run dayana-nuclei qc-report results/<run-id> [--seed 0] [--n-overlays 6]
+```
+
+This writes a self-contained `results/<run-id>/qc/report.html` plus PNG overlays under
+`results/<run-id>/qc/overlays/` — run identity, counts by cell line/SortID/condition, border
+object count and fraction, manual QC tag counts (if any), the `fields.parquet` image
+saturation/focus/runtime summaries, and representative segmentation-boundary overlays.
+Overlay fields are picked by a seeded, stratified sample across cell line × condition ×
+SortID (not just the first or easiest fields), and only rendered when `output.save_masks =
+true` was set for the run.
+
 Not yet implemented in this build: the interactive napari viewer (`qc`), which is the
-intended way to produce those annotations, and the static QC report (`qc-report`). Both
-currently exit with an explicit "not yet implemented" message naming the spec section that
-will implement them, rather than doing nothing silently.
+intended way to actually produce manual annotations by clicking through fields — it
+currently exits with an explicit "not yet implemented" message naming the spec section that
+will implement it, rather than doing nothing silently.
 
 ## Exporting tables
 

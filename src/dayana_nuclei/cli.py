@@ -352,9 +352,20 @@ def qc(run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)]) -
 
 
 @app.command("qc-report")
-def qc_report(run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)]) -> None:
-    """Generate a static QC report for a run (spec section 24)."""
-    _not_yet_implemented("qc-report", "Planned for the QC phase (spec section 24).")
+def qc_report(
+    run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    n_overlays: Annotated[int, typer.Option("--n-overlays", min=0)] = 6,
+) -> None:
+    """Generate a static QC report for a run (spec section 24).
+
+    Overlay field selection is stratified across cell line / condition /
+    SortID and seeded by --seed for reproducibility.
+    """
+    from dayana_nuclei.qc.report import generate_qc_report
+
+    report_path = generate_qc_report(run_dir, seed=seed, n_overlays=n_overlays)
+    typer.echo(f"Wrote QC report to {report_path}")
 
 
 def main() -> None:

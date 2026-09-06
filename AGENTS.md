@@ -124,9 +124,12 @@ measurement-only), manual QC annotation storage (`qc/annotations.py`, spec 22.2/
 napari-independent JSON store; the interactive viewer itself is not yet implemented),
 segmentation validation tooling (`segmentation/validation.py` + `validate-segmentation` CLI,
 spec 14 -- IoU matrix + Hungarian matching, precision/recall/F1 with undefined-not-zero
-semantics when a count is 0, optional disabled-by-default split/merge heuristic), atomic
-per-field pipeline execution with resume, Parquet export, `prepare-analysis`, provenance, and
-the full CLI surface (unimplemented commands fail loudly rather than silently stubbing).
+semantics when a count is 0, a containment-based (not IoU-based -- see
+`docs/decisions/0008`) disabled-by-default split/merge heuristic), a static QC report
+(`qc/report.py` + `qc-report` CLI, spec 24 -- seeded stratified overlay sampling across
+cell line/condition/SortID, self-contained HTML, no report framework), atomic per-field
+pipeline execution with resume, Parquet export, `prepare-analysis`, provenance, and the
+full CLI surface (unimplemented commands fail loudly rather than silently stubbing).
 
 **2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
 session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation initially
@@ -143,8 +146,9 @@ before, but `validate-segmentation` against a real reference mask set (spec sect
 is still required before trusting a 3D analysis run's object count or masks.
 
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
-plan): the interactive napari QC viewer (`qc/viewer.py`) and static `qc-report`, legacy
-measurement comparison, radial distribution, additional-channel measurements
+plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
+produce manual annotations), legacy measurement comparison, radial distribution,
+additional-channel measurements
 (H3K9Ac/H3K9me3/Lamin/MitoTracker), the napari QC viewer and static QC report, `benchmark`, and
 CI. These CLI commands currently exit with an explicit "not yet implemented" message rather
 than a bare stub. `measurements.texture_distances_um` (physical-scale texture mode) is

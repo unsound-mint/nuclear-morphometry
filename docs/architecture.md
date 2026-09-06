@@ -51,9 +51,12 @@ src/dayana_nuclei/
 │   ├── image_metrics.py    compute_image_qc_metrics: per-field min/max/mean
 │   │                       intensity, saturation fraction, focus (variance of
 │   │                       Laplacian), occupied fraction (spec 21, measurement-only)
-│   └── annotations.py      manual QC tag store keyed by (image_id, object_number),
-│                           napari-independent (spec 22.2/23); folds into a
-│                           *derived* nuclei table, never mutates nuclei.parquet
+│   ├── annotations.py      manual QC tag store keyed by (image_id, object_number),
+│   │                       napari-independent (spec 22.2/23); folds into a
+│   │                       *derived* nuclei table, never mutates nuclei.parquet
+│   └── report.py           generate_qc_report: self-contained HTML + PNG overlays
+│                           under results/<run-id>/qc/ (spec 24); seeded, stratified
+│                           overlay sampling across cell line/condition/SortID
 │
 └── pipeline/
     ├── analyze.py          run_pipeline: manifest -> per-field segment+measure ->
@@ -61,9 +64,9 @@ src/dayana_nuclei/
     └── run_state.py        per-field status tracking + resume logic
 ```
 
-Not yet implemented: `measurements/radial.py` (spec 20), `qc/overlays.py` / `qc/report.py` /
-`qc/viewer.py` (Phase 7 -- the interactive napari viewer and static report), multi-channel
-measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
+Not yet implemented: `measurements/radial.py` (spec 20), `qc/viewer.py` (Phase 7 -- the
+interactive napari viewer, the intended way to actually produce manual annotations),
+multi-channel measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
 (spec 32).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
