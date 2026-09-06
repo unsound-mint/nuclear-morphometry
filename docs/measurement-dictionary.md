@@ -289,22 +289,70 @@ see `docs/decisions/0003-physical-units-for-3d.md`.
 ### `qc_exclusion_reason`
 - Dimensionality: n/a (string or null, per object).
 - Definition: `"border"` when `qc_excluded_default` is `True` for that reason; `None`
-  otherwise. Manual reasons (`manual_debris`, `manual_merge`, `manual_split`,
-  `manual_other`) are defined in `schema.py` but not yet populated — manual QC annotation
-  (spec section 23) is not yet implemented.
+  otherwise, in the raw `nuclei.parquet` written during the pipeline run. Manual reasons
+  (`manual_debris`, `manual_merge`, `manual_split`, `manual_other`, defined in `schema.py`)
+  are never written into `nuclei.parquet` itself — they are stored separately (see manual
+  QC annotations below) and only folded into a *derived* copy of the table by
+  `qc/annotations.apply_annotations_to_nuclei`, matching spec 48's immutability
+  requirement.
+- Caveat: if an object is both border-excluded and manually tagged, the reason reported by
+  `apply_annotations_to_nuclei` is `"border"` (the technical reason takes precedence) even
+  though the corresponding `qc_manual_*` boolean is also set from the tag.
 
 ### `include_default` (analysis-ready table only, `prepare-analysis`)
 - Definition: `not qc_excluded_default`, computed once by `schema.include_default_expr`. See
   `docs/decisions/0005-include-default-semantics.md` for why this is derived rather than
   stored redundantly on the raw table.
 
+## Manual QC annotations (`qc/annotations.py`, spec sections 22.2, 23)
+
+- Storage: `results/<run-id>/qc/annotations.json`, a list of `{image_id, object_number, tag,
+  note, annotated_at}` records, keyed by `(image_id, object_number)`. One current tag per
+  object (re-annotating overwrites, it is not an append-only history).
+- `tag`: one of `good`, `debris`, `merge`, `split`, `other`. Maps to
+  `qc_manual_debris`/`qc_manual_merge`/`qc_manual_split`/`qc_manual_other` and an
+  `EXCLUSION_REASON_MANUAL_*` reason (or no exclusion, for `good`) only when folded into a
+  nuclei table via `apply_annotations_to_nuclei` — never written back into
+  `nuclei.parquet`.
+- This module is the storage/merge layer only. The interactive `dayana-nuclei qc` viewer
+  (napari, spec section 23) that produces these annotations is not yet implemented.
+
+## Image-level QC (`qc/image_metrics.py`, spec section 21; columns live on `fields.parquet`)
+
+Measurement-only, by design: no pass/fail threshold is invented anywhere in this module,
+per spec 21 ("default to measurement-only unless a threshold has been
+scientifically/technically validated"). All metrics are computed on the original
+(non-segmentation-normalized) channel volume.
+
+### `image_min_intensity` / `image_max_intensity` / `image_mean_intensity`
+- Definition: min/max/mean pixel value over the whole field (all Z planes in 3D mode).
+
+### `image_saturation_fraction`
+- Definition: fraction of pixels equal to the integer dtype's maximum representable value
+  (e.g. 65535 for `uint16`). `NaN` for a floating-point source image, which has no fixed
+  sensor ceiling to compare against — reported as undefined rather than a fabricated 0 or 1.
+
+### `image_focus_metric`
+- Definition: variance of the discrete Laplacian of the image (`scipy.ndimage.laplace`), a
+  standard focus/blur proxy (spec 21 explicitly permits this method). Higher means more
+  high-frequency detail (sharper); no documented "in focus" cutoff.
+
+### `image_occupied_fraction`
+- Definition: fraction of pixels/voxels with a nonzero segmentation label.
+
+### `segmentation_runtime_s` / `total_runtime_s`
+- Definition: wall-clock seconds for the segmentation call and for the whole field
+  (I/O + segmentation + measurement), respectively. Satisfies spec 21's "segmentation
+  runtime" / "analysis runtime".
+
 ---
 
 ## Not yet implemented
 
 The following spec-required measurements have no code yet and are not documented above
-because there is nothing to audit: 2D radial intensity distribution (spec section 20),
-image-level QC metrics (spec section 21), and additional-channel measurements (H3K9Ac,
-H3K9me3, Lamin A/C shell/core, MitoTracker perinuclear — spec section 25). This section will
-be replaced by real entries as each is implemented and tested, per this project's
-definition of done (`AGENTS.md`): documentation must describe actual code, not planned code.
+because there is nothing to audit: 2D radial intensity distribution (spec section 20), the
+interactive napari QC viewer that produces manual annotations (spec section 23), and
+additional-channel measurements (H3K9Ac, H3K9me3, Lamin A/C shell/core, MitoTracker
+perinuclear — spec section 25). This section will be replaced by real entries as each is
+implemented and tested, per this project's definition of done (`AGENTS.md`): documentation
+must describe actual code, not planned code.

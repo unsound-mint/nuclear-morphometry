@@ -151,6 +151,11 @@ def test_end_to_end_synthetic_run(tmp_path: Path) -> None:
     masks = list((run_dir / "masks").glob("*_labels.tif"))
     assert len(masks) == 2
 
+    # spec 21: image-level QC metrics land on fields.parquet, measurement-only.
+    assert fields_df["image_max_intensity"].to_list() == [5000.0, 5000.0]
+    assert (fields_df["image_occupied_fraction"] > 0).all()
+    assert fields_df["image_saturation_fraction"].null_count() == 0
+
     # 53.6: the elongated object must NOT be excluded merely for being elongated/low-circularity.
     elongated_rows = nuclei_df.filter(pl.col("eccentricity") > 0.9)
     assert elongated_rows.height >= 1

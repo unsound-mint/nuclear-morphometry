@@ -48,6 +48,7 @@ from dayana_nuclei.pipeline.run_state import (
 )
 from dayana_nuclei.provenance import build_provenance, current_git_commit, finalize_provenance
 from dayana_nuclei.qc.flags import compute_object_qc
+from dayana_nuclei.qc.image_metrics import compute_image_qc_metrics
 from dayana_nuclei.schema import nuclei_table_schema
 from dayana_nuclei.segmentation.base import Segmenter
 from dayana_nuclei.segmentation.fixture import FixtureSegmenter
@@ -186,6 +187,9 @@ def _process_field(
     nuclei_df = pl.DataFrame(nuclei_rows, schema=nuclei_schema)
     write_partial_table(nuclei_df, partial_nuclei_path(run_dir, image_id))
 
+    # Always the original source channel (spec 21), never seg_input.
+    image_qc_metrics = compute_image_qc_metrics(volume.data, result.labels)
+
     total_runtime_s = time.perf_counter() - t0
     field_row = {
         "run_id": run_id,
@@ -208,6 +212,7 @@ def _process_field(
         "segmentation_model_id": result.model_id,
         "segmentation_runtime_s": segmentation_runtime_s,
         "total_runtime_s": total_runtime_s,
+        **image_qc_metrics,
     }
     write_partial_table(pl.DataFrame([field_row]), partial_fields_path(run_dir, image_id))
 
