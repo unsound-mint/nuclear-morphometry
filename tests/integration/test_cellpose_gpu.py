@@ -100,3 +100,43 @@ def test_model_is_not_reloaded_between_segment_calls() -> None:
     segmenter.segment(_synthetic_2d_field(), spacing)
 
     assert id(segmenter._model) == model_instance_id
+
+
+def _synthetic_3d_sphere() -> np.ndarray:
+    shape = (40, 100, 100)
+    zz, yy, xx = np.indices(shape)
+    center = np.array(shape) / 2
+    sphere = ((zz - center[0]) ** 2 + (yy - center[1]) ** 2 + (xx - center[2]) ** 2) <= 15**2
+    return np.where(sphere, 1.0, 0.0).astype(np.float32)
+
+
+def test_cellpose_3d_inference_runs_and_returns_correct_shape() -> None:
+    """Mechanics only, per this file's stated scope -- NOT a quality check.
+
+    A single synthetic sphere through do_3D=True was empirically found (this
+    build session) to over-segment severely with cpsam_v2 -- see
+    docs/decisions/0008-cellpose-3d-oversegmentation.md. This test therefore
+    only asserts the adapter drives the 3D API correctly (right shape, right
+    dtype, at least one object, z_axis passed so it doesn't raise) -- it does
+    NOT assert a specific object count. Real 3D segmentation quality must be
+    established via `validate-segmentation` against a real reference mask set
+    (spec section 14) before trusting any 3D result.
+    """
+    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+
+    segmenter = CellposeSegmenter(
+        model="cpsam_v2",
+        device="cuda",
+        diameter_um=0.0,
+        use_anisotropy=True,
+        flow3d_smooth=0.0,
+        batch_size=0,
+    )
+    spacing = PhysicalSpacing(x_um=0.2, y_um=0.2, z_um=0.2)
+
+    result = segmenter.segment(_synthetic_3d_sphere(), spacing)
+
+    assert result.labels.shape == (40, 100, 100)
+    assert np.issubdtype(result.labels.dtype, np.integer)
+    assert result.labels.max() >= 1
+    assert result.backend_metadata["do_3D"] is True

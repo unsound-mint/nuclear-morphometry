@@ -150,6 +150,16 @@ class Config(BaseModel):
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
+    @model_validator(mode="after")
+    def _check_texture_requires_2d(self) -> Config:
+        if self.measurements.texture_2d and self.analysis.mode != "2d":
+            raise ValueError(
+                'measurements.texture_2d = true requires analysis.mode = "2d" '
+                "(spec section 19.1: 3D texture is not implemented and must remain "
+                "disabled). Set measurements.texture_2d = false for a 3D run."
+            )
+        return self
+
 
 def load_config(path: Path) -> tuple[Config, str]:
     """Load and validate a TOML config file.

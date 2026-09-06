@@ -216,6 +216,12 @@ class CellposeSegmenter:
                         normalize=False,  # our own segmentation/normalize.py is authoritative
                         diameter=diameter,
                         do_3D=do_3d,
+                        # Our images are single-channel ZYX with no channel axis;
+                        # cellpose.transforms._convert_image_3d requires z_axis to
+                        # be given explicitly for a plain ndim==3 volume (raises
+                        # otherwise) -- verified empirically, this is not
+                        # auto-detected the way the 2D no-channel case is.
+                        z_axis=0 if do_3d else None,
                         anisotropy=anisotropy,
                         # Cellpose ships no type stubs; its own docstring allows
                         # int/float/list here, but pyright infers `int` from the

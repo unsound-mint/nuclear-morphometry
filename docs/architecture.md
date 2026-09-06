@@ -11,7 +11,7 @@ src/dayana_nuclei/
 ├── models.py            domain types: PhysicalSpacing, ExperimentalMetadata,
 │                         ImageSource, ImageVolume, SegmentationResult, RunIdentity
 ├── config.py             Pydantic TOML config schema (Config, *Config sub-models)
-├── schema.py              canonical output column names + NUCLEI_TABLE_SCHEMA +
+├── schema.py              canonical output column names + nuclei_table_schema() +
 │                          include_default derivation (single source of truth)
 ├── provenance.py          per-run provenance.json assembly
 ├── logging_utils.py       console + per-run file logging setup
@@ -57,7 +57,7 @@ Not yet implemented: `segmentation/validation.py` (Phase 4), `measurements/radia
 (Phase 7), multi-channel measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
 (spec 32).
 
-## Data flow (current: 2D, FixtureSegmenter)
+## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 
 ```
 manifest.csv (validated)
@@ -65,25 +65,40 @@ manifest.csv (validated)
 resolve_image_sources -> {image_id: {channel: ImageSource}}
         |
 io.images.load_channel_volume (Hoechst channel)
-   - BioIO read, axis normalize to YX/ZYX
+   - BioIO read, axis normalize to YX (2D) / ZYX (3D)
    - enforce real physical calibration or fail loudly
    - enforce explicit projection strategy for 2D+Z>1
         |
 segmentation.normalize.normalize_percentile (segmentation-only copy)
         |
 Segmenter.segment(normalized_image, spacing) -> SegmentationResult
+   (FixtureSegmenter: Otsu + connected components, deterministic, test-only;
+    CellposeSegmenter: Cellpose-SAM on GPU, model loaded once per run --
+    2D verified working on real hardware, 3D runs but is UNVALIDATED for
+    quality, see docs/decisions/0008)
         |
-   +----+----------------------------+
-   |                                 |
-io.masks.save_label_mask      measurements.morphology_2d.measure_2d_morphology
-   (atomic, on original             (on the *raw* label image)
-    label array)                          |
-                                    qc.flags.compute_object_qc
-                                    (border-only; no shape inputs)
-                                          |
-                                export.write_partial_table
-                                    (schema.NUCLEI_TABLE_SCHEMA,
-                                     one file per image_id -- resume-safe)
+   +----+---------------------------------------------------+
+   |                                                         |
+io.masks.save_label_mask                    measurements.morphology_2d / morphology_3d
+   (atomic, on original                       (branches on volume.axes; on the *raw*
+    label array)                               label image)
+                                                          |
+                                              measurements.intensity.measure_intensity
+                                              (if config.measurements.intensity; on the
+                                               *original*, non-normalized channel image)
+                                                          |
+                                              measurements.texture.measure_texture_2d
+                                              (if config.measurements.texture_2d and
+                                               axes == YX; masked GLCM, never 3D)
+                                                          |
+                                              qc.flags.compute_object_qc
+                                              (border-only; no shape inputs)
+                                                          |
+                                              export.write_partial_table
+                                              (schema.nuclei_table_schema(), resolved once
+                                               per run from config.measurements and reused
+                                               for every field; one file per image_id --
+                                               resume-safe)
         |
 export.finalize_tables -> nuclei.parquet, fields.parquet, nuclei.csv
         |
@@ -106,8 +121,10 @@ depends on, and `pipeline/run_state.py`'s `incomplete_image_ids` for why an inte
   `exclude_border_from_default` — it has no parameter through which a shape statistic
   (eccentricity, solidity, circularity, ...) could ever drive exclusion. See
   `docs/decisions/0002-no-phenotype-based-qc-filtering.md`.
-- `schema.NUCLEI_TABLE_SCHEMA` is the one place per-field nuclei tables get their dtypes,
-  including for a field with zero objects — see
+- `schema.nuclei_table_schema()` is the one place per-field nuclei tables get their dtypes
+  (base columns plus intensity/texture columns resolved once from the run's config, since
+  texture's column names depend on configured pixel distances), including for a field with
+  zero objects — see
   `docs/decisions/0004-parquet-as-canonical-table.md` for the concat-corruption bug this
   prevents.
 - The computational core (everything above) has no napari or Qt import; GUI code is
@@ -120,3 +137,8 @@ architecture/test use only — no learned model, cannot separate touching nuclei
 Cellpose backend. See `docs/decisions/0001-cellpose-segmentation-backend.md` for the
 installed Cellpose version's API and why `model = "auto"` requires an explicit opt-in
 rather than resolving silently.
+
+2D Cellpose-SAM segmentation is verified working end-to-end on real GPU hardware. 3D mode
+runs without error but showed severe over-segmentation on synthetic test volumes — see
+`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a 3D run's object count
+until it has been checked with `validate-segmentation` against real reference masks.

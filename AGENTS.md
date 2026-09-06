@@ -117,13 +117,25 @@ A change is complete only when:
 ## Current state
 
 Implemented: project scaffold, domain model, config, manifest build/validate, BioIO CZI/TIFF
-I/O with physical calibration, mask persistence, the deterministic `FixtureSegmenter`, 2D
-morphology, border-only QC flags, atomic per-field pipeline execution with resume, Parquet
+I/O with physical calibration, mask persistence, the deterministic `FixtureSegmenter`, the
+Cellpose-SAM backend (`segmentation/cellpose_backend.py`), 2D and 3D morphology, intensity,
+2D texture, border-only QC flags, atomic per-field pipeline execution with resume, Parquet
 export, `prepare-analysis`, provenance, and the full CLI surface (unimplemented commands fail
 loudly rather than silently stubbing).
 
+**2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
+session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation runs without
+error but showed severe over-segmentation (25-434 spurious objects for a single synthetic
+sphere) in this session's testing** — see
+`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a 3D analysis run's object
+count or masks until `validate-segmentation` has been run against a real reference mask set
+(spec section 14); this is a segmentation-model-quality question, not a pipeline bug.
+
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
-plan): the Cellpose backend, segmentation validation tooling, 3D morphology, texture, radial
-distribution, additional-channel measurements (H3K9Ac/H3K9me3/Lamin/MitoTracker), the napari QC
-viewer and static QC report, `benchmark`, and CI. These CLI commands currently exit with an
-explicit "not yet implemented" message rather than a bare stub.
+plan): segmentation validation tooling (`validate-segmentation`), legacy measurement
+comparison, radial distribution, additional-channel measurements
+(H3K9Ac/H3K9me3/Lamin/MitoTracker), the napari QC viewer and static QC report, `benchmark`, and
+CI. These CLI commands currently exit with an explicit "not yet implemented" message rather
+than a bare stub. `measurements.texture_distances_um` (physical-scale texture mode) is
+config-valid but not yet wired into the pipeline (`run_pipeline` raises explaining why —
+cross-field calibration consistency needs solving first); use `texture_distances_px` for now.

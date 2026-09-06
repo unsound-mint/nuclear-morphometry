@@ -6,9 +6,8 @@ definition, source channel, biological rationale, primary/secondary status, and 
 caveats.
 
 Only measurements that are actually implemented and tested are listed here. Do not treat
-this file as a preview of the full spec — see `Dayana_Nuclei_Complete_Build_Spec.md`
-sections 16-20 and 25 for measurements not yet built (3D morphology, radial distribution,
-additional-channel intensity/spatial features).
+this file as a preview of the full spec — see the "Not yet implemented" section at the
+bottom for what `Dayana_Nuclei_Complete_Build_Spec.md` still calls for.
 
 ---
 

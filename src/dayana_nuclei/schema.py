@@ -92,7 +92,7 @@ NUCLEUS_KEY_COLUMNS: tuple[str, ...] = ("image_id", "object_number")
 #    object happens to share one qc_exclusion_reason (e.g. all None, or all
 #    "border") can infer a different dtype (Null vs Utf8) than another
 #    field with mixed values, again breaking the cross-field concat.
-NUCLEI_TABLE_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
+BASE_NUCLEI_TABLE_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "run_id": pl.Utf8,
     "image_id": pl.Utf8,
     "object_number": pl.Int64,
@@ -121,6 +121,17 @@ NUCLEI_TABLE_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "centroid_col_px": pl.Float64,
     "centroid_y_um": pl.Float64,
     "centroid_x_um": pl.Float64,
+    # 3D-only morphology (spec section 17). Null on every row of a 2D-mode run;
+    # "extent" above is shared between 2D and 3D (same concept, mode-exclusive).
+    "volume_voxels": pl.Int64,
+    "volume_um3": pl.Float64,
+    "surface_area_um2": pl.Float64,
+    "z_depth_slices": pl.Int64,
+    "z_depth_um": pl.Float64,
+    "axis_major_um": pl.Float64,
+    "axis_intermediate_um": pl.Float64,
+    "axis_minor_um": pl.Float64,
+    "sphericity": pl.Float64,
     "touches_border": pl.Boolean,
     "qc_border": pl.Boolean,
     "qc_manual_debris": pl.Boolean,
@@ -130,6 +141,57 @@ NUCLEI_TABLE_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "qc_excluded_default": pl.Boolean,
     "qc_exclusion_reason": pl.Utf8,
 }
+
+# --- Intensity (spec section 18). Flat column names: only the Hoechst channel
+# is measured today (spec Phase 8 -- additional channels -- will need a
+# channel-name prefix scheme; measure_intensity deliberately stays
+# single-channel and unprefixed until that's designed, see
+# measurements/intensity.py's docstring). ---
+INTENSITY_COLUMNS: tuple[str, ...] = (
+    "mean_intensity",
+    "median_intensity",
+    "integrated_intensity",
+    "min_intensity",
+    "max_intensity",
+    "std_intensity",
+)
+
+# --- Texture (spec section 19.4): column names are {property}_d{distance_px},
+# dynamic on the run's configured distances -- see nuclei_table_schema(). ---
+_TEXTURE_PROPERTIES: tuple[str, ...] = (
+    "contrast",
+    "homogeneity",
+    "correlation",
+    "energy",
+    "entropy",
+)
+
+
+def nuclei_table_schema(
+    *,
+    include_intensity: bool,
+    include_texture: bool,
+    texture_distances_px: tuple[int, ...] = (),
+) -> dict[str, pl.DataType | type[pl.DataType]]:
+    """The full per-field nuclei schema for one run, resolved once from its config.
+
+    Texture column names depend on the run's configured pixel distances
+    (spec 19.4), so they cannot be part of the static BASE_NUCLEI_TABLE_SCHEMA.
+    Call this once per run (config is fixed for the run's duration) and reuse
+    the same dict for every field -- that is what guarantees every field's
+    partial table shares one schema and can be concatenated safely (see
+    docs/decisions/0004-parquet-as-canonical-table.md).
+    """
+    result = dict(BASE_NUCLEI_TABLE_SCHEMA)
+    if include_intensity:
+        for column in INTENSITY_COLUMNS:
+            result[column] = pl.Float64
+    if include_texture:
+        for distance_px in texture_distances_px:
+            for prop in _TEXTURE_PROPERTIES:
+                result[f"{prop}_d{distance_px}"] = pl.Float64
+    return result
+
 
 # --- Analysis-ready table (prepare-analysis output, spec section 26.3) ---
 ANALYSIS_READY_REQUIRED_COLUMNS: tuple[str, ...] = (

@@ -31,7 +31,10 @@ from dayana_nuclei.io.images import load_channel_volume
 from dayana_nuclei.io.manifest import read_manifest_csv, resolve_image_sources, validate_manifest
 from dayana_nuclei.io.masks import mask_path_for, save_label_mask
 from dayana_nuclei.logging_utils import setup_logging
-from dayana_nuclei.measurements.morphology_2d import measure_2d_morphology
+from dayana_nuclei.measurements.intensity import measure_intensity
+from dayana_nuclei.measurements.morphology_2d import Nucleus2DMorphology, measure_2d_morphology
+from dayana_nuclei.measurements.morphology_3d import Nucleus3DMorphology, measure_3d_morphology
+from dayana_nuclei.measurements.texture import measure_texture_2d
 from dayana_nuclei.models import ImageSource
 from dayana_nuclei.pipeline.run_state import (
     FieldState,
@@ -45,7 +48,7 @@ from dayana_nuclei.pipeline.run_state import (
 )
 from dayana_nuclei.provenance import build_provenance, current_git_commit, finalize_provenance
 from dayana_nuclei.qc.flags import compute_object_qc
-from dayana_nuclei.schema import NUCLEI_TABLE_SCHEMA
+from dayana_nuclei.schema import nuclei_table_schema
 from dayana_nuclei.segmentation.base import Segmenter
 from dayana_nuclei.segmentation.fixture import FixtureSegmenter
 from dayana_nuclei.segmentation.normalize import normalize_percentile
@@ -89,6 +92,7 @@ def _process_field(
     image_id: str,
     channels: dict[str, ImageSource],
     segmenter: Segmenter,
+    nuclei_schema: dict[str, Any],
 ) -> None:
     hoechst_source = channels[config.input.hoechst_channel]
     t0 = time.perf_counter()
@@ -124,12 +128,32 @@ def _process_field(
             compress=config.output.compress_masks,
         )
 
-    if volume.axes != "YX":
-        raise NotImplementedError(
-            f"3D measurement is not yet implemented in this build (image_id={image_id}); "
-            f'set analysis.mode = "2d" or wait for the 3D measurement phase.'
-        )
-    morphologies = measure_2d_morphology(result.labels, volume.spacing)
+    morphologies: list[Nucleus2DMorphology] | list[Nucleus3DMorphology]
+    if volume.axes == "YX":
+        morphologies = measure_2d_morphology(result.labels, volume.spacing)
+    else:
+        morphologies = measure_3d_morphology(result.labels, volume.spacing)
+
+    # Always the original source channel, never seg_input (spec 13.3, 18): the
+    # segmentation-normalized copy exists only to feed the segmenter.
+    intensity_by_object: dict[int, dict[str, Any]] = {}
+    if config.measurements.intensity:
+        intensity_by_object = {
+            r.object_number: r.model_dump(exclude={"object_number"})
+            for r in measure_intensity(result.labels, volume.data)
+        }
+
+    texture_by_object: dict[int, dict[str, Any]] = {}
+    if config.measurements.texture_2d and volume.axes == "YX":
+        texture_by_object = {
+            r.object_number: r.model_dump(exclude={"object_number"})
+            for r in measure_texture_2d(
+                result.labels,
+                volume.data,
+                distances_px=list(config.measurements.texture_distances_px),
+                gray_levels=config.measurements.gray_levels,
+            )
+        }
 
     metadata = hoechst_source.metadata
     nuclei_rows: list[dict[str, Any]] = []
@@ -154,10 +178,12 @@ def _process_field(
                 "scene": str(hoechst_source.scene) if hoechst_source.scene is not None else None,
                 "mask_path": str(mask_path) if mask_path is not None else None,
                 **morph.model_dump(exclude={"object_number"}),
+                **intensity_by_object.get(morph.object_number, {}),
+                **texture_by_object.get(morph.object_number, {}),
                 **qc.model_dump(),
             }
         )
-    nuclei_df = pl.DataFrame(nuclei_rows, schema=NUCLEI_TABLE_SCHEMA)
+    nuclei_df = pl.DataFrame(nuclei_rows, schema=nuclei_schema)
     write_partial_table(nuclei_df, partial_nuclei_path(run_dir, image_id))
 
     total_runtime_s = time.perf_counter() - t0
@@ -194,6 +220,16 @@ def run_pipeline(
     allow_unvalidated_model: bool = False,
 ) -> Path:
     config, config_hash = load_config(config_path)
+
+    if config.measurements.texture_2d and config.measurements.texture_distances_um:
+        raise ValueError(
+            "measurements.texture_distances_um is not yet wired into the pipeline: "
+            "converting um to pixels requires a per-field X/Y calibration, and doing "
+            "that independently per field risks each field resolving a different "
+            "pixel distance (and therefore a different texture column name), which "
+            "would break the run's single nuclei.parquet schema. Use "
+            "measurements.texture_distances_px for now."
+        )
 
     manifest_df = read_manifest_csv(config.experiment.manifest)
     validation = validate_manifest(manifest_df)
@@ -257,6 +293,11 @@ def run_pipeline(
     save_run_state(run_dir / "run_state.json", run_state)
 
     segmenter = build_segmenter(config, allow_unvalidated_model=allow_unvalidated_model)
+    nuclei_schema = nuclei_table_schema(
+        include_intensity=config.measurements.intensity,
+        include_texture=config.measurements.texture_2d,
+        texture_distances_px=config.measurements.texture_distances_px,
+    )
 
     for image_id in incomplete_image_ids(run_state):
         mark_running(run_state, image_id)
@@ -270,6 +311,7 @@ def run_pipeline(
                 image_id=image_id,
                 channels=sources[image_id],
                 segmenter=segmenter,
+                nuclei_schema=nuclei_schema,
             )
         except Exception as exc:
             logger.exception("Field %s failed", image_id)
