@@ -33,7 +33,10 @@ src/dayana_nuclei/
 │   ├── normalize.py        segmentation-only percentile normalization
 │   ├── fixture.py          FixtureSegmenter (deterministic, Otsu + connected
 │   │                       components; architecture/test backend only)
-│   └── cellpose_backend.py Cellpose-SAM (4.x) production backend
+│   ├── cellpose_backend.py Cellpose-SAM (4.x) production backend
+│   └── validation.py       validate_segmentation: IoU matrix + Hungarian matching,
+│                           precision/recall/F1, disabled-by-default split/merge
+│                           heuristic (spec 14; backs `validate-segmentation` CLI)
 │
 ├── measurements/
 │   ├── morphology_2d.py    area/perimeter/circularity/solidity/eccentricity/...
@@ -43,8 +46,14 @@ src/dayana_nuclei/
 │                           correlation/energy
 │
 ├── qc/
-│   └── flags.py            compute_object_qc: border-only automatic exclusion
-│                           (no shape-statistic inputs, by construction)
+│   ├── flags.py            compute_object_qc: border-only automatic exclusion
+│   │                       (no shape-statistic inputs, by construction)
+│   ├── image_metrics.py    compute_image_qc_metrics: per-field min/max/mean
+│   │                       intensity, saturation fraction, focus (variance of
+│   │                       Laplacian), occupied fraction (spec 21, measurement-only)
+│   └── annotations.py      manual QC tag store keyed by (image_id, object_number),
+│                           napari-independent (spec 22.2/23); folds into a
+│                           *derived* nuclei table, never mutates nuclei.parquet
 │
 └── pipeline/
     ├── analyze.py          run_pipeline: manifest -> per-field segment+measure ->
@@ -52,9 +61,9 @@ src/dayana_nuclei/
     └── run_state.py        per-field status tracking + resume logic
 ```
 
-Not yet implemented: `segmentation/validation.py` (Phase 4), `measurements/radial.py`
-(spec 20), `qc/annotations.py` / `qc/overlays.py` / `qc/report.py` / `qc/viewer.py`
-(Phase 7), multi-channel measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
+Not yet implemented: `measurements/radial.py` (spec 20), `qc/overlays.py` / `qc/report.py` /
+`qc/viewer.py` (Phase 7 -- the interactive napari viewer and static report), multi-channel
+measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
 (spec 32).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
@@ -74,8 +83,10 @@ segmentation.normalize.normalize_percentile (segmentation-only copy)
 Segmenter.segment(normalized_image, spacing) -> SegmentationResult
    (FixtureSegmenter: Otsu + connected components, deterministic, test-only;
     CellposeSegmenter: Cellpose-SAM on GPU, model loaded once per run --
-    2D verified working on real hardware, 3D runs but is UNVALIDATED for
-    quality, see docs/decisions/0008)
+    2D verified working on real hardware; 3D verified correct on one
+    realistic-signal synthetic case after fixing a normalization-bypass bug,
+    real-data validation via `validate-segmentation` still required before
+    production use, see docs/decisions/0008)
         |
    +----+---------------------------------------------------+
    |                                                         |
@@ -94,15 +105,22 @@ io.masks.save_label_mask                    measurements.morphology_2d / morphol
                                               qc.flags.compute_object_qc
                                               (border-only; no shape inputs)
                                                           |
-                                              export.write_partial_table
+                                              export.write_partial_table (-> nuclei row)
                                               (schema.nuclei_table_schema(), resolved once
                                                per run from config.measurements and reused
                                                for every field; one file per image_id --
                                                resume-safe)
         |
+qc.image_metrics.compute_image_qc_metrics (on the *original* channel image + labels;
+   measurement-only, spec 21) -> merged into the same field's export.write_partial_table
+   (-> fields row)
+        |
 export.finalize_tables -> nuclei.parquet, fields.parquet, nuclei.csv
         |
 export.prepare_analysis -> analysis_ready.parquet (adds include_default)
+        |
+(optional, post-hoc) qc.annotations.apply_annotations_to_nuclei -> a *derived* copy of
+   nuclei.parquet with manual tags folded in; never mutates nuclei.parquet itself (spec 48)
 ```
 
 Per-field commits are atomic and idempotent (temp-file-plus-rename, one file per

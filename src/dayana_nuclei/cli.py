@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import polars as pl
 import typer
 
 from dayana_nuclei import provenance as prov
@@ -18,6 +19,7 @@ from dayana_nuclei.io.manifest import (
     write_manifest_csv,
 )
 from dayana_nuclei.pipeline.analyze import run_pipeline
+from dayana_nuclei.segmentation import validation as seg_validation
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 manifest_app = typer.Typer(
@@ -251,14 +253,82 @@ def benchmark(
 
 
 @app.command("validate-segmentation")
-def validate_segmentation(
-    prediction: Annotated[Path, typer.Option("--prediction", exists=True)],
-    reference: Annotated[Path, typer.Option("--reference", exists=True)],
+def validate_segmentation_command(
+    prediction: Annotated[Path | None, typer.Option("--prediction", exists=True)] = None,
+    reference: Annotated[Path | None, typer.Option("--reference", exists=True)] = None,
+    manifest: Annotated[Path | None, typer.Option("--manifest", exists=True)] = None,
+    iou_threshold: Annotated[float, typer.Option("--iou-threshold")] = 0.5,
+    estimate_split_merge: Annotated[bool, typer.Option("--estimate-split-merge")] = False,
+    split_merge_iou_threshold: Annotated[float, typer.Option("--split-merge-iou-threshold")] = 0.1,
+    output: Annotated[Path | None, typer.Option("--output")] = None,
 ) -> None:
-    """Compare predicted vs. reference label masks (spec section 14)."""
-    _not_yet_implemented(
-        "validate-segmentation", "Planned for the segmentation-validation phase (spec section 14)."
-    )
+    """Compare predicted vs. reference label masks (spec section 14).
+
+    Pass either --prediction/--reference for a single pair, or --manifest
+    for a batch (a CSV with columns case_id, prediction_path,
+    reference_path). iou_threshold is never a hard-coded scientific claim
+    (spec 14.3) -- it is always this explicit, documented parameter.
+
+    This command only computes metrics. Accepting a segmentation model for
+    real thesis analysis still requires manually reviewing representative
+    overlays and recording the decision in a decision record under
+    docs/decisions/ (spec 14.3); that judgment is not automated here.
+    """
+    if manifest is not None:
+        if prediction is not None or reference is not None:
+            typer.echo("Pass either --manifest or --prediction/--reference, not both.", err=True)
+            raise typer.Exit(code=2)
+        manifest_df = pl.read_csv(manifest)
+        required_columns = {"case_id", "prediction_path", "reference_path"}
+        missing_columns = required_columns - set(manifest_df.columns)
+        if missing_columns:
+            typer.echo(
+                f"Validation manifest {manifest} is missing columns: {sorted(missing_columns)}. "
+                f"Required columns: {sorted(required_columns)}.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        cases = [
+            (row["case_id"], Path(row["prediction_path"]), Path(row["reference_path"]))
+            for row in manifest_df.iter_rows(named=True)
+        ]
+        reports = seg_validation.validate_segmentation_batch(
+            cases,
+            iou_threshold=iou_threshold,
+            estimate_split_merge=estimate_split_merge,
+            split_merge_iou_threshold=split_merge_iou_threshold,
+        )
+    elif prediction is not None and reference is not None:
+        reports = [
+            seg_validation.validate_segmentation_from_files(
+                prediction,
+                reference,
+                iou_threshold=iou_threshold,
+                estimate_split_merge=estimate_split_merge,
+                split_merge_iou_threshold=split_merge_iou_threshold,
+            )
+        ]
+    else:
+        typer.echo(
+            "Pass --prediction and --reference for one pair, or --manifest for a batch.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    for report in reports:
+        m = report.metrics
+        typer.echo(
+            f"{report.case_id}: predicted={m.predicted_object_count} "
+            f"reference={m.reference_object_count} matched={m.matched_count} "
+            f"precision={m.precision} recall={m.recall} f1={m.f1} "
+            f"unmatched_prediction={m.unmatched_prediction_count} "
+            f"unmatched_reference={m.unmatched_reference_count}"
+        )
+
+    if output is not None:
+        payload = [report.model_dump(mode="json") for report in reports]
+        output.write_text(json.dumps(payload, indent=2))
+        typer.echo(f"Wrote full validation report for {len(reports)} case(s) to {output}")
 
 
 @app.command("compare-measurements")
