@@ -183,6 +183,18 @@ def compare_measurements(
     """Compare ``ours`` against ``reference`` for every column pair in
     ``mapping.columns``, joining on ``mapping.*_join_keys``. Both inputs
     must already refer to the same objects on the same masks (spec 16.1)."""
+    missing_reference_keys = [c for c in mapping.reference_join_keys if c not in reference.columns]
+    if missing_reference_keys:
+        raise ValueError(
+            f"mapping.join.reference names column(s) {missing_reference_keys} not present in "
+            f"{reference_path} (columns: {reference.columns})."
+        )
+    missing_ours_keys = [c for c in mapping.ours_join_keys if c not in ours.columns]
+    if missing_ours_keys:
+        raise ValueError(
+            f"mapping.join.ours names column(s) {missing_ours_keys} not present in "
+            f"{ours_path} (columns: {ours.columns})."
+        )
     missing_reference = [c for c in mapping.columns if c not in reference.columns]
     if missing_reference:
         raise ValueError(

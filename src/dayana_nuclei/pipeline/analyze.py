@@ -94,10 +94,13 @@ def _run_dir_for(config: Config, run_id: str) -> Path:
 def _timed_stage(stage_timings: dict[str, float], key: str) -> Iterator[None]:
     """Accumulate wall time spent in the block into ``stage_timings[key]``.
 
-    Runs unconditionally around each stage (spec section 32's per-stage
-    benchmark), including ones a config disables (e.g. mask serialization),
-    so every key is always present with a real value -- 0.0 for a skipped
-    stage, never a missing key.
+    When wrapped unconditionally around a stage (spec section 32's per-stage
+    benchmark) -- including one a config disables, e.g. mask serialization --
+    the key is always present with a real value, 0.0 for a skipped stage,
+    never missing. That guarantee does NOT hold for a key only set *inside*
+    a loop over per-object work (``qc_s``, ``row_assembly_s``): a field with
+    zero objects never enters the loop, so those two keys are seeded to 0.0
+    explicitly before the loop rather than relying on this helper alone.
     """
     t = time.perf_counter()
     try:
@@ -258,6 +261,13 @@ def _process_field(
 
     metadata = hoechst_source.metadata
     nuclei_rows: list[dict[str, Any]] = []
+    # Seeded here, not just accumulated by _timed_stage, because a
+    # zero-object field never enters the loop below at all -- without this,
+    # StageTimings(**stage_timings) would raise "field required" for both
+    # keys on exactly the fixture-backend "blank field, zero objects" case
+    # tests/integration/test_pipeline_e2e.py already exercises.
+    stage_timings["qc_s"] = 0.0
+    stage_timings["row_assembly_s"] = 0.0
     for morph in morphologies:
         with _timed_stage(stage_timings, "qc_s"):
             qc = compute_object_qc(

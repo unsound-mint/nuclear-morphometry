@@ -243,6 +243,30 @@ def test_missing_ours_column_raises_named_error() -> None:
         compare_measurements(ours, reference, mapping)
 
 
+def test_missing_reference_join_key_raises_named_error() -> None:
+    ours = pl.DataFrame({"image_id": ["a"], "object_number": [1], "area_px": [10.0]})
+    reference = pl.DataFrame({"image_id": ["a"], "AreaShape_Area": [10.0]})  # no ObjectNumber
+    mapping = _mapping(
+        reference_join_keys=("image_id", "ObjectNumber"),
+        ours_join_keys=("image_id", "object_number"),
+    )
+
+    with pytest.raises(ValueError, match="ObjectNumber"):
+        compare_measurements(ours, reference, mapping)
+
+
+def test_missing_ours_join_key_raises_named_error() -> None:
+    ours = pl.DataFrame({"image_id": ["a"], "area_px": [10.0]})  # no object_number
+    reference = pl.DataFrame({"image_id": ["a"], "ObjectNumber": [1], "AreaShape_Area": [10.0]})
+    mapping = _mapping(
+        reference_join_keys=("image_id", "ObjectNumber"),
+        ours_join_keys=("image_id", "object_number"),
+    )
+
+    with pytest.raises(ValueError, match="object_number"):
+        compare_measurements(ours, reference, mapping)
+
+
 def test_nan_and_inf_values_are_excluded_not_corrupting_statistics() -> None:
     ours = pl.DataFrame(
         {
