@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from dayana_nuclei.schema import ChannelKind
+
 Projection = Literal["none", "max", "mean", "specific_plane"]
 AnalysisMode = Literal["2d", "3d"]
 Device = Literal["cuda", "cpu"]
@@ -89,6 +91,51 @@ class SegmentationConfig(BaseModel):
         return self
 
 
+class AdditionalChannelConfig(BaseModel):
+    """One additional (non-Hoechst) channel's measurement configuration
+    (spec section 25). The Hoechst-derived nuclear mask is always reused --
+    an additional channel is never re-segmented."""
+
+    model_config = ConfigDict(frozen=True)
+
+    channel: str = Field(min_length=1)
+    prefix: str = Field(min_length=1)
+    kind: ChannelKind = "nuclear"
+    # Required for kind="lamin_shell_core" (spec 25.3).
+    shell_width_um: float | None = None
+    # Required for kind="mitotracker_rings" (spec 25.4): (start, end) bands
+    # in um from the nuclear boundary, ordered near then far.
+    near_ring_um: tuple[float, float] | None = None
+    far_ring_um: tuple[float, float] | None = None
+
+    @model_validator(mode="after")
+    def _check_kind_parameters(self) -> AdditionalChannelConfig:
+        if self.kind == "lamin_shell_core":
+            if self.shell_width_um is None or self.shell_width_um <= 0:
+                raise ValueError(
+                    f"measurements.additional_channels prefix={self.prefix!r} has "
+                    f'kind="lamin_shell_core" and requires shell_width_um > 0 '
+                    f"(got {self.shell_width_um!r})."
+                )
+        elif self.kind == "mitotracker_rings":
+            if self.near_ring_um is None or self.far_ring_um is None:
+                raise ValueError(
+                    f"measurements.additional_channels prefix={self.prefix!r} has "
+                    f'kind="mitotracker_rings" and requires both near_ring_um and '
+                    f"far_ring_um to be set."
+                )
+            near_start, near_end = self.near_ring_um
+            far_start, far_end = self.far_ring_um
+            if not (0 <= near_start < near_end <= far_start < far_end):
+                raise ValueError(
+                    f"measurements.additional_channels prefix={self.prefix!r}: "
+                    f"near_ring_um and far_ring_um must be ordered, non-overlapping "
+                    f"bands increasing outward from the nuclear boundary -- got "
+                    f"near={self.near_ring_um}, far={self.far_ring_um}."
+                )
+        return self
+
+
 class MeasurementsConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -100,6 +147,7 @@ class MeasurementsConfig(BaseModel):
     texture_distances_px: tuple[int, ...] = (3, 5, 10, 20)
     texture_distances_um: tuple[float, ...] = ()
     radial_bins: int = Field(default=5, gt=0)
+    additional_channels: tuple[AdditionalChannelConfig, ...] = ()
 
     @model_validator(mode="after")
     def _check_texture_scale_mode(self) -> MeasurementsConfig:
@@ -181,6 +229,34 @@ class Config(BaseModel):
                 'segmentation.backend to "fixture" if disabling normalization is '
                 "genuinely intended (Otsu thresholding is scale-invariant)."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _check_additional_channels(self) -> Config:
+        configured_channels = set(self.input.additional_channels)
+        prefixes_seen: set[str] = set()
+        for entry in self.measurements.additional_channels:
+            if entry.channel not in configured_channels:
+                raise ValueError(
+                    f"measurements.additional_channels references channel "
+                    f"{entry.channel!r}, which is not listed in "
+                    f"input.additional_channels {sorted(configured_channels)!r}. "
+                    f"Add it there so the pipeline knows to load it for each field."
+                )
+            if entry.prefix == "hoechst":
+                raise ValueError(
+                    'measurements.additional_channels prefix cannot be "hoechst" -- '
+                    "Hoechst's own intensity columns are deliberately unprefixed "
+                    "(mean_intensity, etc.); reusing that name as an additional-"
+                    "channel prefix would create an ambiguous column name."
+                )
+            if entry.prefix in prefixes_seen:
+                raise ValueError(
+                    f"measurements.additional_channels has a duplicate prefix "
+                    f"{entry.prefix!r}; every additional channel needs a unique "
+                    f"column prefix."
+                )
+            prefixes_seen.add(entry.prefix)
         return self
 
 

@@ -32,8 +32,10 @@ from dayana_nuclei.io.manifest import read_manifest_csv, resolve_image_sources, 
 from dayana_nuclei.io.masks import mask_path_for, save_label_mask
 from dayana_nuclei.logging_utils import setup_logging
 from dayana_nuclei.measurements.intensity import measure_intensity
+from dayana_nuclei.measurements.lamin import measure_lamin_shell_core
 from dayana_nuclei.measurements.morphology_2d import Nucleus2DMorphology, measure_2d_morphology
 from dayana_nuclei.measurements.morphology_3d import Nucleus3DMorphology, measure_3d_morphology
+from dayana_nuclei.measurements.spatial import measure_perinuclear_rings
 from dayana_nuclei.measurements.texture import measure_texture_2d
 from dayana_nuclei.models import ImageSource
 from dayana_nuclei.pipeline.run_state import (
@@ -156,6 +158,54 @@ def _process_field(
             )
         }
 
+    # Additional channels (spec 25): always reuse result.labels, the
+    # Hoechst-derived mask -- never re-segmented. A channel missing for this
+    # particular field (spec 25.2: "if present") simply contributes no
+    # entries here; nuclei_schema still declares its columns, so those rows
+    # get null for them rather than breaking the run's shared schema.
+    additional_by_object: dict[int, dict[str, Any]] = {}
+    for entry in config.measurements.additional_channels:
+        channel_source = channels.get(entry.channel)
+        if channel_source is None:
+            continue
+        channel_volume = load_channel_volume(
+            channel_source,
+            mode=config.analysis.mode,
+            projection=config.analysis.projection,
+            specific_plane=config.analysis.specific_plane,
+        )
+        if channel_volume.data.shape != result.labels.shape:
+            raise ValueError(
+                f"Additional channel {entry.channel!r} for {image_id!r} has shape "
+                f"{channel_volume.data.shape}, which does not match the Hoechst-"
+                f"derived segmentation shape {result.labels.shape}. The nuclear mask "
+                f"cannot be reused for a differently-shaped channel (spec 25)."
+            )
+        if entry.kind == "nuclear":
+            channel_results: list[Any] = measure_intensity(result.labels, channel_volume.data)
+        elif entry.kind == "lamin_shell_core":
+            assert entry.shell_width_um is not None  # enforced by config validation
+            channel_results = measure_lamin_shell_core(
+                result.labels,
+                channel_volume.data,
+                volume.spacing,
+                shell_width_um=entry.shell_width_um,
+            )
+        else:  # "mitotracker_rings"
+            assert entry.near_ring_um is not None and entry.far_ring_um is not None
+            channel_results = measure_perinuclear_rings(
+                result.labels,
+                channel_volume.data,
+                volume.spacing,
+                near_ring_um=entry.near_ring_um,
+                far_ring_um=entry.far_ring_um,
+            )
+        for r in channel_results:
+            values = {
+                f"{entry.prefix}_{k}": v for k, v in r.model_dump(exclude={"object_number"}).items()
+            }
+            additional_by_object.setdefault(r.object_number, {}).update(values)
+
     metadata = hoechst_source.metadata
     nuclei_rows: list[dict[str, Any]] = []
     for morph in morphologies:
@@ -181,6 +231,7 @@ def _process_field(
                 **morph.model_dump(exclude={"object_number"}),
                 **intensity_by_object.get(morph.object_number, {}),
                 **texture_by_object.get(morph.object_number, {}),
+                **additional_by_object.get(morph.object_number, {}),
                 **qc.model_dump(),
             }
         )
@@ -302,6 +353,9 @@ def run_pipeline(
         include_intensity=config.measurements.intensity,
         include_texture=config.measurements.texture_2d,
         texture_distances_px=config.measurements.texture_distances_px,
+        additional_channels=tuple(
+            (entry.prefix, entry.kind) for entry in config.measurements.additional_channels
+        ),
     )
 
     for image_id in incomplete_image_ids(run_state):

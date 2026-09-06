@@ -69,6 +69,125 @@ def test_3d_config_alias_and_defaults() -> None:
     assert config.output.write_csv is True
 
 
+def test_additional_channel_must_be_listed_in_input_channels() -> None:
+    data = _base_dict()
+    data["measurements"] = {
+        "additional_channels": [{"channel": "H3K9Ac", "prefix": "h3k9ac", "kind": "nuclear"}]
+    }
+    with pytest.raises(ValidationError, match="not listed in input"):
+        Config.model_validate(data)
+
+
+def test_additional_channel_nuclear_kind_is_accepted() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["H3K9Ac"]
+    data["measurements"] = {
+        "additional_channels": [{"channel": "H3K9Ac", "prefix": "h3k9ac", "kind": "nuclear"}]
+    }
+    config = Config.model_validate(data)
+    assert config.measurements.additional_channels[0].prefix == "h3k9ac"
+
+
+def test_additional_channel_prefix_cannot_be_hoechst() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["H3K9Ac"]
+    data["measurements"] = {
+        "additional_channels": [{"channel": "H3K9Ac", "prefix": "hoechst", "kind": "nuclear"}]
+    }
+    with pytest.raises(ValidationError, match='cannot be "hoechst"'):
+        Config.model_validate(data)
+
+
+def test_additional_channel_prefixes_must_be_unique() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["H3K9Ac", "H3K9me3"]
+    data["measurements"] = {
+        "additional_channels": [
+            {"channel": "H3K9Ac", "prefix": "dup", "kind": "nuclear"},
+            {"channel": "H3K9me3", "prefix": "dup", "kind": "nuclear"},
+        ]
+    }
+    with pytest.raises(ValidationError, match="duplicate prefix"):
+        Config.model_validate(data)
+
+
+def test_lamin_shell_core_requires_positive_shell_width() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["LaminAC"]
+    data["measurements"] = {
+        "additional_channels": [
+            {"channel": "LaminAC", "prefix": "laminac", "kind": "lamin_shell_core"}
+        ]
+    }
+    with pytest.raises(ValidationError, match="shell_width_um"):
+        Config.model_validate(data)
+
+
+def test_lamin_shell_core_accepted_with_shell_width() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["LaminAC"]
+    data["measurements"] = {
+        "additional_channels": [
+            {
+                "channel": "LaminAC",
+                "prefix": "laminac",
+                "kind": "lamin_shell_core",
+                "shell_width_um": 0.5,
+            }
+        ]
+    }
+    config = Config.model_validate(data)
+    assert config.measurements.additional_channels[0].shell_width_um == 0.5
+
+
+def test_mitotracker_rings_requires_both_bands() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["MitoTracker"]
+    data["measurements"] = {
+        "additional_channels": [
+            {"channel": "MitoTracker", "prefix": "mito", "kind": "mitotracker_rings"}
+        ]
+    }
+    with pytest.raises(ValidationError, match="near_ring_um and far_ring_um"):
+        Config.model_validate(data)
+
+
+def test_mitotracker_rings_reject_overlapping_bands() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["MitoTracker"]
+    data["measurements"] = {
+        "additional_channels": [
+            {
+                "channel": "MitoTracker",
+                "prefix": "mito",
+                "kind": "mitotracker_rings",
+                "near_ring_um": [0.0, 10.0],
+                "far_ring_um": [5.0, 15.0],
+            }
+        ]
+    }
+    with pytest.raises(ValidationError, match="ordered, non-overlapping"):
+        Config.model_validate(data)
+
+
+def test_mitotracker_rings_accepted_with_ordered_bands() -> None:
+    data = _base_dict()
+    data["input"]["additional_channels"] = ["MitoTracker"]
+    data["measurements"] = {
+        "additional_channels": [
+            {
+                "channel": "MitoTracker",
+                "prefix": "mito",
+                "kind": "mitotracker_rings",
+                "near_ring_um": [0.0, 1.0],
+                "far_ring_um": [3.0, 5.0],
+            }
+        ]
+    }
+    config = Config.model_validate(data)
+    assert config.measurements.additional_channels[0].near_ring_um == (0.0, 1.0)
+
+
 def test_load_config_from_file_returns_hash(tmp_path: Path) -> None:
     config_path = tmp_path / "cfg.toml"
     config_path.write_text(

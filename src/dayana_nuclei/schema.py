@@ -17,6 +17,8 @@ table carries the boolean researchers actually filter on.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import polars as pl
 
 # --- Identity / metadata columns (present on nuclei.parquet and fields.parquet) ---
@@ -142,11 +144,9 @@ BASE_NUCLEI_TABLE_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "qc_exclusion_reason": pl.Utf8,
 }
 
-# --- Intensity (spec section 18). Flat column names: only the Hoechst channel
-# is measured today (spec Phase 8 -- additional channels -- will need a
-# channel-name prefix scheme; measure_intensity deliberately stays
-# single-channel and unprefixed until that's designed, see
-# measurements/intensity.py's docstring). ---
+# --- Intensity (spec section 18). Flat, unprefixed column names -- this is
+# always the Hoechst channel; additional channels (spec 25, Phase 8) use the
+# prefixed scheme below instead, so these names never collide with them. ---
 INTENSITY_COLUMNS: tuple[str, ...] = (
     "mean_intensity",
     "median_intensity",
@@ -166,21 +166,61 @@ _TEXTURE_PROPERTIES: tuple[str, ...] = (
     "entropy",
 )
 
+# --- Additional channels (spec section 25, Phase 8). Every column is
+# {prefix}_{suffix}; "hoechst" is a reserved prefix (config.py rejects it)
+# since Hoechst's own columns above are deliberately unprefixed. ---
+ChannelKind = Literal["nuclear", "lamin_shell_core", "mitotracker_rings"]
+
+# H3K9Ac / H3K9me3 (spec 25.1/25.2): plain nuclear intensity, same shape as
+# INTENSITY_COLUMNS, reusing measurements.intensity.measure_intensity.
+NUCLEAR_CHANNEL_SUFFIXES: tuple[str, ...] = INTENSITY_COLUMNS
+
+# Lamin A/C (spec 25.3): total/shell/core intensity + shell:core ratio, where
+# shell/core are defined by a physically-calibrated distance-from-boundary
+# erosion (measurements/lamin.py).
+LAMIN_SHELL_CORE_SUFFIXES: tuple[str, ...] = (
+    "total_mean_intensity",
+    "shell_mean_intensity",
+    "core_mean_intensity",
+    "shell_core_ratio",
+)
+
+# MitoTracker (spec 25.4): mean intensity in a near and a far perinuclear
+# ring plus their ratio, with pixels assigned to their nearest nucleus to
+# avoid double-counting overlapping perinuclear regions (measurements/spatial.py).
+MITOTRACKER_RING_SUFFIXES: tuple[str, ...] = (
+    "near_ring_mean_intensity",
+    "far_ring_mean_intensity",
+    "perinuclear_enrichment_ratio",
+)
+
+_CHANNEL_KIND_SUFFIXES: dict[ChannelKind, tuple[str, ...]] = {
+    "nuclear": NUCLEAR_CHANNEL_SUFFIXES,
+    "lamin_shell_core": LAMIN_SHELL_CORE_SUFFIXES,
+    "mitotracker_rings": MITOTRACKER_RING_SUFFIXES,
+}
+
 
 def nuclei_table_schema(
     *,
     include_intensity: bool,
     include_texture: bool,
     texture_distances_px: tuple[int, ...] = (),
+    additional_channels: tuple[tuple[str, ChannelKind], ...] = (),
 ) -> dict[str, pl.DataType | type[pl.DataType]]:
     """The full per-field nuclei schema for one run, resolved once from its config.
 
     Texture column names depend on the run's configured pixel distances
-    (spec 19.4), so they cannot be part of the static BASE_NUCLEI_TABLE_SCHEMA.
-    Call this once per run (config is fixed for the run's duration) and reuse
-    the same dict for every field -- that is what guarantees every field's
-    partial table shares one schema and can be concatenated safely (see
-    docs/decisions/0004-parquet-as-canonical-table.md).
+    (spec 19.4), and additional-channel column names depend on the run's
+    configured channels/prefixes (spec 25) -- neither can be part of the
+    static BASE_NUCLEI_TABLE_SCHEMA. Call this once per run (config is fixed
+    for the run's duration) and reuse the same dict for every field -- that
+    is what guarantees every field's partial table shares one schema and can
+    be concatenated safely (see docs/decisions/0004-parquet-as-canonical-table.md),
+    including a field where a given additional channel was not present.
+
+    ``additional_channels`` is a sequence of (prefix, kind) pairs, e.g.
+    ``[("h3k9ac", "nuclear"), ("laminac", "lamin_shell_core")]``.
     """
     result = dict(BASE_NUCLEI_TABLE_SCHEMA)
     if include_intensity:
@@ -190,6 +230,9 @@ def nuclei_table_schema(
         for distance_px in texture_distances_px:
             for prop in _TEXTURE_PROPERTIES:
                 result[f"{prop}_d{distance_px}"] = pl.Float64
+    for prefix, kind in additional_channels:
+        for suffix in _CHANNEL_KIND_SUFFIXES[kind]:
+            result[f"{prefix}_{suffix}"] = pl.Float64
     return result
 
 
