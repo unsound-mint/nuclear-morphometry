@@ -1,19 +1,19 @@
 from pathlib import Path
 
 from dayana_nuclei.pipeline.run_state import (
+    incomplete_image_ids,
     init_run_state,
     load_run_state,
     mark_complete,
     mark_failed,
     mark_running,
-    pending_or_failed_image_ids,
     save_run_state,
 )
 
 
 def test_init_run_state_all_pending() -> None:
     state = init_run_state(run_id="r1", config_hash="abc", image_ids=["f1", "f2"])
-    assert pending_or_failed_image_ids(state) == ["f1", "f2"]
+    assert incomplete_image_ids(state) == ["f1", "f2"]
 
 
 def test_state_transitions() -> None:
@@ -26,7 +26,7 @@ def test_state_transitions() -> None:
     assert state.fields["f1"].status == "complete"
     assert state.fields["f2"].status == "failed"
     assert state.fields["f2"].error == "boom"
-    assert pending_or_failed_image_ids(state) == ["f2"]
+    assert incomplete_image_ids(state) == ["f2"]
 
 
 def test_save_and_load_round_trip(tmp_path: Path) -> None:

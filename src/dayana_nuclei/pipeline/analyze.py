@@ -4,7 +4,7 @@ and measurement -> atomic per-field commits -> finalized Parquet tables.
 Failure isolation (spec 33): one field's exception marks it failed and moves
 on; it never aborts the whole run. A field only reaches ``complete`` after
 its partial tables (and mask, if configured) are committed, so resume can
-safely retry only pending/failed fields.
+safely retry any pending, failed, or interrupted ("running") field.
 """
 
 from __future__ import annotations
@@ -35,16 +35,17 @@ from dayana_nuclei.measurements.morphology_2d import measure_2d_morphology
 from dayana_nuclei.models import ImageSource
 from dayana_nuclei.pipeline.run_state import (
     FieldState,
+    incomplete_image_ids,
     init_run_state,
     load_run_state,
     mark_complete,
     mark_failed,
     mark_running,
-    pending_or_failed_image_ids,
     save_run_state,
 )
 from dayana_nuclei.provenance import build_provenance, current_git_commit, finalize_provenance
 from dayana_nuclei.qc.flags import compute_object_qc
+from dayana_nuclei.schema import NUCLEI_TABLE_SCHEMA
 from dayana_nuclei.segmentation.base import Segmenter, SegmenterUnavailableError
 from dayana_nuclei.segmentation.fixture import FixtureSegmenter
 from dayana_nuclei.segmentation.normalize import normalize_percentile
@@ -149,7 +150,7 @@ def _process_field(
                 **qc.model_dump(),
             }
         )
-    nuclei_df = pl.DataFrame(nuclei_rows) if nuclei_rows else pl.DataFrame()
+    nuclei_df = pl.DataFrame(nuclei_rows, schema=NUCLEI_TABLE_SCHEMA)
     write_partial_table(nuclei_df, partial_nuclei_path(run_dir, image_id))
 
     total_runtime_s = time.perf_counter() - t0
@@ -246,7 +247,7 @@ def run_pipeline(
 
     segmenter = build_segmenter(config)
 
-    for image_id in pending_or_failed_image_ids(run_state):
+    for image_id in incomplete_image_ids(run_state):
         mark_running(run_state, image_id)
         save_run_state(run_dir / "run_state.json", run_state)
         logger.info("Starting field %s", image_id)

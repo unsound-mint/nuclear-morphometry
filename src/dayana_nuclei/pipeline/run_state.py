@@ -72,9 +72,18 @@ def mark_failed(state: RunState, image_id: str, error: str) -> None:
     state.fields[image_id].error = error
 
 
-def pending_or_failed_image_ids(state: RunState) -> list[str]:
+def incomplete_image_ids(state: RunState) -> list[str]:
+    """Fields resume must (re)process: pending, failed, or interrupted mid-run.
+
+    "running" is included deliberately -- a field that was mid-processing
+    when the process was killed never reached "complete" and must be
+    retried (spec 33: resume "retries failed/incomplete fields"). This is
+    safe because each field owns exactly one partial-table file
+    (export.py), so reprocessing it just overwrites that file rather than
+    duplicating rows.
+    """
     return [
         image_id
         for image_id, field_state in state.fields.items()
-        if field_state.status in ("pending", "failed")
+        if field_state.status in ("pending", "failed", "running")
     ]
