@@ -127,9 +127,12 @@ spec 14 -- IoU matrix + Hungarian matching, precision/recall/F1 with undefined-n
 semantics when a count is 0, a containment-based (not IoU-based -- see
 `docs/decisions/0008`) disabled-by-default split/merge heuristic), a static QC report
 (`qc/report.py` + `qc-report` CLI, spec 24 -- seeded stratified overlay sampling across
-cell line/condition/SortID, self-contained HTML, no report framework), atomic per-field
-pipeline execution with resume, Parquet export, `prepare-analysis`, provenance, and the
-full CLI surface (unimplemented commands fail loudly rather than silently stubbing).
+cell line/condition/SortID, self-contained HTML, no report framework), multi-channel
+measurements (spec 25, Phase 8 -- `measurements/lamin.py` shell/core via
+physically-calibrated erosion, `measurements/spatial.py` MitoTracker perinuclear rings via
+nearest-nucleus disambiguation, see `docs/decisions/0009`), atomic per-field pipeline
+execution with resume, Parquet export, `prepare-analysis`, provenance, CI, and the full CLI
+surface (unimplemented commands fail loudly rather than silently stubbing).
 
 **2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
 session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation initially
@@ -147,10 +150,9 @@ is still required before trusting a 3D analysis run's object count or masks.
 
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
 plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
-produce manual annotations), legacy measurement comparison, radial distribution,
-additional-channel measurements
-(H3K9Ac/H3K9me3/Lamin/MitoTracker), the napari QC viewer and static QC report, `benchmark`, and
-CI. These CLI commands currently exit with an explicit "not yet implemented" message rather
-than a bare stub. `measurements.texture_distances_um` (physical-scale texture mode) is
-config-valid but not yet wired into the pipeline (`run_pipeline` raises explaining why —
-cross-field calibration consistency needs solving first); use `texture_distances_px` for now.
+produce manual annotations), legacy measurement comparison (`compare-measurements`), radial
+distribution (spec section 20), and `benchmark`. These CLI commands currently exit with an
+explicit "not yet implemented" message rather than a bare stub.
+`measurements.texture_distances_um` (physical-scale texture mode) is config-valid but not
+yet wired into the pipeline (`run_pipeline` raises explaining why — cross-field calibration
+consistency needs solving first); use `texture_distances_px` for now.

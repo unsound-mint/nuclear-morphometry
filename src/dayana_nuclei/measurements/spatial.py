@@ -38,6 +38,23 @@ class NucleusPerinuclearIntensity(BaseModel):
     near_ring_mean_intensity: float | None
     far_ring_mean_intensity: float | None
     perinuclear_enrichment_ratio: float | None
+    # A ring touching the field-of-view edge is truncated -- its mean is
+    # still reported (never dropped), but this flags that the mean is over
+    # a possibly-biased partial sample, analogous to qc_border for the
+    # nucleus itself (spec 22.1).
+    near_ring_touches_border: bool
+    far_ring_touches_border: bool
+
+
+def _edge_pixels_mask(shape: tuple[int, ...]) -> NDArray[np.bool_]:
+    mask = np.zeros(shape, dtype=bool)
+    for axis in range(len(shape)):
+        index: list[slice | int] = [slice(None)] * len(shape)
+        index[axis] = 0
+        mask[tuple(index)] = True
+        index[axis] = -1
+        mask[tuple(index)] = True
+    return mask
 
 
 def _spacing_sampling(spacing: PhysicalSpacing, ndim: int) -> tuple[float, ...]:
@@ -103,6 +120,7 @@ def measure_perinuclear_rings(
         distance_transform_edt(background, sampling=sampling, return_indices=True),
     )
     nearest_label = labels[tuple(nearest_index)]
+    edge_pixels = _edge_pixels_mask(labels.shape)
 
     results: list[NucleusPerinuclearIntensity] = []
     for label in object_labels:
@@ -123,6 +141,8 @@ def measure_perinuclear_rings(
                 near_ring_mean_intensity=near_mean,
                 far_ring_mean_intensity=far_mean,
                 perinuclear_enrichment_ratio=ratio,
+                near_ring_touches_border=bool(np.any(near_mask & edge_pixels)),
+                far_ring_touches_border=bool(np.any(far_mask & edge_pixels)),
             )
         )
     return results

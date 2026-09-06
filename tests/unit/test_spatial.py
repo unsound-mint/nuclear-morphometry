@@ -102,6 +102,40 @@ def test_no_objects_returns_empty_list() -> None:
     assert results == []
 
 
+def test_ring_touching_field_edge_is_flagged() -> None:
+    """A nucleus close enough to the image boundary that its far ring runs
+    off the edge must be flagged -- the mean is still reported (never
+    dropped), but downstream analysis needs to know it's a partial sample."""
+    labels = np.zeros((30, 30), dtype=np.int32)
+    rr, cc = disk((3, 15), 3)  # near the top edge
+    labels[rr, cc] = 1
+    intensity = np.full(labels.shape, 100.0)
+    spacing = PhysicalSpacing(x_um=1.0, y_um=1.0)
+
+    results = measure_perinuclear_rings(
+        labels, intensity, spacing, near_ring_um=(0.0, 2.0), far_ring_um=(5.0, 20.0)
+    )
+
+    r = results[0]
+    assert r.far_ring_touches_border is True
+
+
+def test_ring_far_from_field_edge_is_not_flagged() -> None:
+    labels = np.zeros((100, 100), dtype=np.int32)
+    rr, cc = disk((50, 50), 5)
+    labels[rr, cc] = 1
+    intensity = np.full(labels.shape, 100.0)
+    spacing = PhysicalSpacing(x_um=1.0, y_um=1.0)
+
+    results = measure_perinuclear_rings(
+        labels, intensity, spacing, near_ring_um=(0.0, 2.0), far_ring_um=(5.0, 10.0)
+    )
+
+    r = results[0]
+    assert r.near_ring_touches_border is False
+    assert r.far_ring_touches_border is False
+
+
 def test_shape_mismatch_raises() -> None:
     labels = np.zeros((10, 10), dtype=np.int32)
     intensity = np.zeros((8, 8), dtype=np.float64)

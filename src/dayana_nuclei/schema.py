@@ -177,7 +177,9 @@ NUCLEAR_CHANNEL_SUFFIXES: tuple[str, ...] = INTENSITY_COLUMNS
 
 # Lamin A/C (spec 25.3): total/shell/core intensity + shell:core ratio, where
 # shell/core are defined by a physically-calibrated distance-from-boundary
-# erosion (measurements/lamin.py).
+# erosion (measurements/lamin.py). Note: {prefix}_total_mean_intensity is
+# definitionally the same quantity as the unprefixed mean_intensity would be
+# for this channel -- not an independent measurement.
 LAMIN_SHELL_CORE_SUFFIXES: tuple[str, ...] = (
     "total_mean_intensity",
     "shell_mean_intensity",
@@ -188,16 +190,29 @@ LAMIN_SHELL_CORE_SUFFIXES: tuple[str, ...] = (
 # MitoTracker (spec 25.4): mean intensity in a near and a far perinuclear
 # ring plus their ratio, with pixels assigned to their nearest nucleus to
 # avoid double-counting overlapping perinuclear regions (measurements/spatial.py).
+# The two *_touches_border columns flag a ring clipped by the field of view
+# (analogous to qc_border for the nucleus itself) -- a clipped ring's mean is
+# still reported, never dropped, but the flag lets analysis exclude or
+# stratify by it rather than silently averaging a truncated sample.
 MITOTRACKER_RING_SUFFIXES: tuple[str, ...] = (
     "near_ring_mean_intensity",
     "far_ring_mean_intensity",
     "perinuclear_enrichment_ratio",
+)
+MITOTRACKER_RING_BOOLEAN_SUFFIXES: tuple[str, ...] = (
+    "near_ring_touches_border",
+    "far_ring_touches_border",
 )
 
 _CHANNEL_KIND_SUFFIXES: dict[ChannelKind, tuple[str, ...]] = {
     "nuclear": NUCLEAR_CHANNEL_SUFFIXES,
     "lamin_shell_core": LAMIN_SHELL_CORE_SUFFIXES,
     "mitotracker_rings": MITOTRACKER_RING_SUFFIXES,
+}
+_CHANNEL_KIND_BOOLEAN_SUFFIXES: dict[ChannelKind, tuple[str, ...]] = {
+    "nuclear": (),
+    "lamin_shell_core": (),
+    "mitotracker_rings": MITOTRACKER_RING_BOOLEAN_SUFFIXES,
 }
 
 
@@ -233,6 +248,8 @@ def nuclei_table_schema(
     for prefix, kind in additional_channels:
         for suffix in _CHANNEL_KIND_SUFFIXES[kind]:
             result[f"{prefix}_{suffix}"] = pl.Float64
+        for suffix in _CHANNEL_KIND_BOOLEAN_SUFFIXES[kind]:
+            result[f"{prefix}_{suffix}"] = pl.Boolean
     return result
 
 

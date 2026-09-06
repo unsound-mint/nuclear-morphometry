@@ -42,8 +42,13 @@ src/dayana_nuclei/
 │   ├── morphology_2d.py    area/perimeter/circularity/solidity/eccentricity/...
 │   ├── morphology_3d.py    volume/surface area/z-depth/principal axes/sphericity
 │   ├── intensity.py        mean/median/integrated/min/max/std, dimension-agnostic
-│   └── texture.py          2D-only masked-GLCM contrast/entropy/homogeneity/
-│                           correlation/energy
+│   ├── texture.py          2D-only masked-GLCM contrast/entropy/homogeneity/
+│   │                       correlation/energy
+│   ├── lamin.py            shell/core intensity via a physically-calibrated
+│   │                       distance-from-boundary erosion (spec 25.3)
+│   └── spatial.py          MitoTracker near/far perinuclear ring intensity via
+│                           nearest-nucleus disambiguation (spec 25.4; see
+│                           docs/decisions/0009)
 │
 ├── qc/
 │   ├── flags.py            compute_object_qc: border-only automatic exclusion
@@ -66,8 +71,7 @@ src/dayana_nuclei/
 
 Not yet implemented: `measurements/radial.py` (spec 20), `qc/viewer.py` (Phase 7 -- the
 interactive napari viewer, the intended way to actually produce manual annotations),
-multi-channel measurement wiring (spec 25, Phase 8), `pipeline/benchmark.py`
-(spec 32).
+`pipeline/benchmark.py` (spec 32), `compare-measurements` (legacy CellProfiler parity).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 
@@ -104,6 +108,13 @@ io.masks.save_label_mask                    measurements.morphology_2d / morphol
                                               measurements.texture.measure_texture_2d
                                               (if config.measurements.texture_2d and
                                                axes == YX; masked GLCM, never 3D)
+                                                          |
+                                              per config.measurements.additional_channels:
+                                              load_channel_volume(that channel) then
+                                              measure_intensity / lamin.measure_lamin_
+                                              shell_core / spatial.measure_perinuclear_rings
+                                              on the SAME result.labels (spec 25 -- never
+                                              re-segmented); {prefix}_-prefixed columns
                                                           |
                                               qc.flags.compute_object_qc
                                               (border-only; no shape inputs)

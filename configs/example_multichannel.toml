@@ -10,6 +10,9 @@ mode = "3d"
 hoechst_channel = "Hoechst"
 strict_physical_spacing = true
 additional_channels = ["LaminA-C", "H3K9Ac", "MitoTracker"]
+# Each name above must match a real channel name embedded in the source
+# file(s) (see `dayana-nuclei inspect <path>`) -- these are illustrative,
+# not universal defaults.
 
 [segmentation]
 backend = "cellpose"
@@ -31,6 +34,36 @@ morphology = true
 intensity = true
 texture_2d = false
 radial_distribution_2d = false
+
+# Additional channels (spec section 25). The nuclear mask is always the
+# Hoechst-derived one -- these channels are never independently re-segmented.
+# Hoechst's own columns stay unprefixed (mean_intensity, etc.); each entry
+# below gets its own {prefix}_ column prefix.
+
+[[measurements.additional_channels]]
+channel = "H3K9Ac"
+prefix = "h3k9ac"
+kind = "nuclear"
+
+[[measurements.additional_channels]]
+channel = "LaminA-C"
+prefix = "laminac"
+kind = "lamin_shell_core"
+# Inner shell width in micrometers -- converted to a per-voxel
+# distance-from-boundary via the field's real spacing, correct even under
+# anisotropic 3D spacing (spec 25.3). Not a validated biological value;
+# choose based on the acquisition's real nuclear envelope thickness.
+shell_width_um = 0.5
+
+[[measurements.additional_channels]]
+channel = "MitoTracker"
+prefix = "mito"
+kind = "mitotracker_rings"
+# (start, end) distance bands in um from the nuclear boundary, increasing
+# outward. See docs/decisions/0009-mitotracker-two-ring-design.md for why
+# this is exactly two rings rather than an arbitrary list.
+near_ring_um = [0.0, 1.0]
+far_ring_um = [3.0, 5.0]
 
 [qc]
 flag_border_objects = true

@@ -347,12 +347,75 @@ scientifically/technically validated"). All metrics are computed on the original
 
 ---
 
+## Additional channels (spec section 25)
+
+Configured per-channel via `measurements.additional_channels` (`config.py`'s
+`AdditionalChannelConfig`); columns live on `nuclei.parquet`. The Hoechst-derived nuclear
+mask is always reused — an additional channel is never independently re-segmented. Every
+column is `{prefix}_{suffix}`; the prefix is user-chosen per channel and validated unique
+and not `"hoechst"` (Hoechst's own columns above stay unprefixed). A field where a
+configured channel was not present (spec 25.2: "if present") has `None`/null for that
+channel's columns on that field's rows, not a broken run.
+
+### `kind = "nuclear"` (H3K9Ac, H3K9me3 — spec 25.1/25.2)
+
+- Columns: `{prefix}_mean_intensity`, `{prefix}_median_intensity`,
+  `{prefix}_integrated_intensity`, `{prefix}_min_intensity`, `{prefix}_max_intensity`,
+  `{prefix}_std_intensity`.
+- Definition: identical to the Hoechst `Intensity` section above (same
+  `measurements/intensity.py::measure_intensity`), just called again on this channel's
+  original image and prefixed by the caller.
+- Not a complete chromatin accessibility assay (spec 25.1's explicit caveat) — a summary
+  intensity statistic only.
+
+### `kind = "lamin_shell_core"` (Lamin A/C — spec 25.3, `measurements/lamin.py`)
+
+- `{prefix}_total_mean_intensity`: mean intensity over the whole nucleus. Definitionally
+  the same quantity as `mean_intensity` would be for this channel — not an independent
+  measurement from a channel also configured with `kind="nuclear"`.
+- `{prefix}_shell_mean_intensity` / `{prefix}_core_mean_intensity`: mean intensity in the
+  peripheral shell vs. the interior core, split by a **physically-calibrated** (µm, not
+  pixel-count) distance-from-boundary erosion — `shell_width_um` converted per-object via
+  a Euclidean distance transform sampled with the field's real spacing, correct under
+  anisotropic 3D spacing (spec 25.3's explicit requirement). An object with no pixel
+  farther than `shell_width_um` from its own boundary is reported entirely as shell;
+  `core_mean_intensity` and the ratio are `None`, not fabricated.
+- `{prefix}_shell_core_ratio`: `shell_mean / core_mean`, `None` if either mean is
+  unavailable or `core_mean` is exactly 0.
+- Caveat: `distance_transform_edt` on an object mask with no zero pixel inside its own
+  bounding box (e.g. an axis-aligned/rectangular object filling its bbox exactly) produces
+  meaningless distances unless padded first — `measure_lamin_shell_core` pads by one voxel
+  of background before transforming. Found empirically; regression-tested.
+
+### `kind = "mitotracker_rings"` (MitoTracker — spec 25.4, `measurements/spatial.py`)
+
+Explicitly isolated per spec ("Keep this module optional and isolated"); MitoTracker
+intensity is never interpreted as mtDNA copy number (spec 25.4's explicit caveat) — this
+is a distance-banded intensity summary only. See
+`docs/decisions/0009-mitotracker-two-ring-design.md` for why this is exactly two
+configured rings rather than an arbitrary list.
+
+- `{prefix}_near_ring_mean_intensity` / `{prefix}_far_ring_mean_intensity`: mean intensity
+  in the configured `near_ring_um`/`far_ring_um` `(start, end)` distance bands (µm) outside
+  the nuclear boundary. Every background pixel is assigned to its nearest nucleus (a
+  physically-calibrated, labeled Euclidean distance transform), so overlapping perinuclear
+  regions from neighboring nuclei never double-count a pixel. `None` if no background pixel
+  falls in that band for this nucleus (e.g. crowded out by a closer neighbor).
+- `{prefix}_perinuclear_enrichment_ratio`: `near_mean / far_mean`, `None` if either mean is
+  unavailable or `far_mean` is exactly 0.
+- `{prefix}_near_ring_touches_border` / `{prefix}_far_ring_touches_border`: `True` if any
+  pixel of that ring touches the field-of-view edge, meaning the ring is likely truncated
+  and its mean is over a partial sample. The mean is still reported (never dropped) —
+  analogous to `qc_border` for the nucleus itself; downstream analysis decides whether to
+  exclude or stratify on this flag.
+
+---
+
 ## Not yet implemented
 
 The following spec-required measurements have no code yet and are not documented above
-because there is nothing to audit: 2D radial intensity distribution (spec section 20), the
-interactive napari QC viewer that produces manual annotations (spec section 23), and
-additional-channel measurements (H3K9Ac, H3K9me3, Lamin A/C shell/core, MitoTracker
-perinuclear — spec section 25). This section will be replaced by real entries as each is
-implemented and tested, per this project's definition of done (`AGENTS.md`): documentation
-must describe actual code, not planned code.
+because there is nothing to audit: 2D radial intensity distribution (spec section 20) and
+the interactive napari QC viewer that produces manual annotations (spec section 23). This
+section will be replaced by real entries as each is implemented and tested, per this
+project's definition of done (`AGENTS.md`): documentation must describe actual code, not
+planned code.
