@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,6 +28,8 @@ from dayana_nuclei.io.masks import load_label_mask
 from dayana_nuclei.models import ExperimentalMetadata, ImageSource
 from dayana_nuclei.qc.annotations import load_annotations
 from dayana_nuclei.segmentation.normalize import normalize_percentile
+
+logger = logging.getLogger(__name__)
 
 _IMAGE_METRIC_COLUMNS = (
     "image_min_intensity",
@@ -114,11 +117,22 @@ def _render_overlay(
         volume = load_channel_volume(
             source, mode=mode, projection=projection, specific_plane=specific_plane
         )
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        # Expected, recoverable causes (source file moved, calibration
+        # missing) -- logged rather than silently dropped, since the report
+        # otherwise looks identical to "masks not saved for this run" and
+        # gives the user no way to diagnose which one actually happened.
+        logger.warning("qc-report: could not render overlay for %s: %s", field_row["image_id"], exc)
         return False
 
     image = volume.data.max(axis=0) if volume.axes == "ZYX" else volume.data
     if image.shape != labels.shape:
+        logger.warning(
+            "qc-report: skipping overlay for %s: image shape %s does not match mask shape %s",
+            field_row["image_id"],
+            image.shape,
+            labels.shape,
+        )
         return False
 
     display = normalize_percentile(image, percentile_low=1.0, percentile_high=99.5)
@@ -162,6 +176,7 @@ def _render_html(
     runtime_summary: pl.DataFrame | None,
     overlay_records: list[dict[str, str]],
     seed: int,
+    n_overlays: int,
 ) -> str:
     border_fraction_text = f"{border_fraction:.3f}" if border_fraction is not None else "n/a"
     manual_items = (
@@ -182,8 +197,8 @@ def _render_html(
         if runtime_summary is not None
         else "<p>No fields available.</p>"
     )
-    overlay_html = (
-        "".join(
+    if overlay_records:
+        overlay_html = "".join(
             f'<figure><img src="{html.escape(record["png_path"])}" '
             f'alt="{html.escape(record["image_id"])}">'
             f"<figcaption>{html.escape(record['image_id'])} "
@@ -191,8 +206,13 @@ def _render_html(
             f"{html.escape(record['sort_id'])})</figcaption></figure>"
             for record in overlay_records
         )
-        or "<p>No overlays could be rendered (masks not saved for this run?).</p>"
-    )
+    elif n_overlays == 0:
+        overlay_html = "<p>Overlay rendering disabled (--n-overlays 0).</p>"
+    else:
+        overlay_html = (
+            "<p>No overlays could be rendered (see the run's log for per-field reasons -- "
+            "was output.save_masks = true for this run?).</p>"
+        )
 
     return f"""<!doctype html>
 <html>
@@ -340,6 +360,7 @@ def generate_qc_report(run_dir: Path, *, seed: int = 0, n_overlays: int = 6) -> 
         runtime_summary=runtime_summary,
         overlay_records=overlay_records,
         seed=seed,
+        n_overlays=n_overlays,
     )
     qc_dir.mkdir(parents=True, exist_ok=True)
     report_path = qc_dir / "report.html"

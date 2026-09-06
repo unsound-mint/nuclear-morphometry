@@ -136,6 +136,39 @@ def test_qc_report_overlay_selection_is_stratified() -> None:
     assert selected_rows.select(["cell_line", "condition"]).unique().height == 4
 
 
+def test_qc_report_overlay_selection_covers_imbalanced_strata() -> None:
+    """With n == n_strata, round-robin gives one-per-stratum by construction
+    regardless of whether stratification actually does anything -- this case
+    is the one that discriminates: one dominant stratum (10 fields) plus 3
+    singleton strata, asking for 4. Naive first-n or unstratified sampling
+    would return mostly the dominant stratum; stratified round-robin must
+    still cover all 4."""
+    dominant = pl.DataFrame(
+        {
+            "image_id": [f"dominant_{i}" for i in range(10)],
+            "cell_line": ["SW480"] * 10,
+            "condition": ["low"] * 10,
+            "sort_id": ["Sort01"] * 10,
+        }
+    )
+    singletons = pl.DataFrame(
+        {
+            "image_id": ["b", "c", "d"],
+            "cell_line": ["SW480", "SW620", "SW620"],
+            "condition": ["high", "low", "bulk"],
+            "sort_id": ["Sort01", "Sort02", "Sort02"],
+        }
+    )
+    fields_df = pl.concat([dominant, singletons])
+    from dayana_nuclei.qc.report import _select_stratified_overlays
+
+    selected = _select_stratified_overlays(fields_df, n=4, seed=0)
+
+    assert len(selected) == 4
+    selected_rows = fields_df.filter(pl.col("image_id").is_in(selected))
+    assert selected_rows.select(["cell_line", "condition", "sort_id"]).unique().height == 4
+
+
 def test_qc_report_selection_is_deterministic_for_a_given_seed() -> None:
     fields_df = pl.DataFrame(
         {
@@ -168,6 +201,10 @@ def test_qc_report_reflects_manual_annotations(tmp_path: Path) -> None:
 
     text = report_path.read_text()
     assert "debris: 1" in text
+    # n_overlays=0 is a deliberate choice, not a rendering failure -- must not
+    # be reported with the same message as "masks weren't saved".
+    assert "Overlay rendering disabled" in text
+    assert "masks not saved" not in text
 
 
 def test_qc_report_raises_clearly_without_finalized_tables(tmp_path: Path) -> None:
