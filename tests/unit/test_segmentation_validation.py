@@ -111,7 +111,10 @@ def test_split_is_detected_when_one_reference_matches_two_predictions() -> None:
     prediction[5:10, 0:10] = 2
 
     report = validate_segmentation(
-        prediction, reference, estimate_split_merge=True, split_merge_iou_threshold=0.1
+        prediction,
+        reference,
+        estimate_split_merge=True,
+        split_merge_containment_threshold=0.1,
     )
 
     assert report.split_merge is not None
@@ -127,12 +130,34 @@ def test_merge_is_detected_when_one_prediction_covers_two_references() -> None:
     prediction[0:10, 0:10] = 1
 
     report = validate_segmentation(
-        prediction, reference, estimate_split_merge=True, split_merge_iou_threshold=0.1
+        prediction,
+        reference,
+        estimate_split_merge=True,
+        split_merge_containment_threshold=0.1,
     )
 
     assert report.split_merge is not None
     assert report.split_merge.probable_merge_prediction_labels == (1,)
     assert report.split_merge.probable_split_reference_labels == ()
+
+
+def test_split_is_detected_for_heavy_fragmentation_where_iou_would_miss_it() -> None:
+    """Regression for docs/decisions/0008: Cellpose-SAM 3D fragmented one sphere
+    into 25-434 pieces. Each fragment's IoU with the reference is ~1/n_fragments,
+    which drops below any fixed IoU threshold as fragmentation worsens -- IoU
+    cannot detect this. Containment (intersection / min(pred_area, ref_area))
+    stays ~1.0 per fragment regardless of fragment count, so it must catch this
+    even with the default threshold."""
+    reference = np.zeros((10, 100), dtype=np.int32)
+    reference[:, :] = 1
+    prediction = np.zeros((10, 100), dtype=np.int32)
+    for i in range(10):
+        prediction[:, i * 10 : (i + 1) * 10] = i + 1  # 10 equal-sized fragments
+
+    report = validate_segmentation(prediction, reference, estimate_split_merge=True)
+
+    assert report.split_merge is not None
+    assert report.split_merge.probable_split_reference_labels == (1,)
 
 
 def test_3d_labels_are_supported() -> None:

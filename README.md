@@ -115,11 +115,75 @@ Skips fields already marked `complete`; retries `pending`, `failed`, and `runnin
 (interrupted mid-processing) fields. Never duplicates rows — each field owns exactly one
 partial output file that a retry simply overwrites.
 
+## Segmentation validation
+
+Segmentation quality is a scientific gate, not optional tooling (spec section 14) — do not
+trust a segmentation backend/model for real thesis analysis without running this first.
+
+### Building the reference set
+
+Manually correct (in napari, or any label-editing tool) a fixed set of reference masks,
+stratified across:
+
+- SW480 and SW620
+- low, high, and bulk conditions
+- independent sorts (SortID)
+- sparse fields (few, well-separated nuclei)
+- dense/touching nuclei
+- irregular nuclei
+- elongated nuclei
+- dim nuclei
+- any other case that was visibly difficult during a manual look at raw data
+
+The point of stratification is that a model can look excellent on easy sparse fields and
+fail badly on dense or dim ones — the reference set must contain the hard cases on purpose.
+
+### Running the check
+
+Single pair:
+
+```bash
+uv run dayana-nuclei validate-segmentation \
+    --prediction results/<run-id>/masks/<image_id>_labels.tif \
+    --reference path/to/manually_corrected_labels.tif \
+    --output validation_report.json
+```
+
+Batch, via a CSV with columns `case_id, prediction_path, reference_path`:
+
+```bash
+uv run dayana-nuclei validate-segmentation --manifest validation_cases.csv --output report.json
+```
+
+Metrics computed (spec 14.2): predicted/reference object counts, one-to-one IoU-matrix +
+Hungarian matching, mean/median matched IoU, precision/recall/F1 at `--iou-threshold`
+(default 0.5 — a convention, not a validated scientific claim for this dataset; never
+hard-coded, always pass what you intend), and unmatched counts on both sides. Precision is
+reported as undefined rather than a misleading 0.0 when there are zero predicted objects to
+score (recall, symmetrically, for zero reference objects). `--estimate-split-merge` adds an
+optional, disabled-by-default heuristic (spec 22.2) flagging probable over-/under-
+segmentation — it never filters or deletes anything, only reports labels to look at.
+
+### Acceptance (spec 14.3)
+
+This command only computes numbers. **Do not treat a passing metric alone as acceptance.**
+Manually review representative overlays (prediction vs. reference, and prediction vs. raw
+image) before trusting a model, and record the accepted model/config and the reference set
+used in a new file under `docs/decisions/` — see `docs/decisions/0008-cellpose-3d-
+oversegmentation.md` for the kind of finding this process exists to catch.
+
 ## QC
 
-Not yet implemented in this build: the interactive napari viewer (`qc`) and static QC
-report (`qc-report`). Both currently exit with an explicit "not yet implemented" message
-naming the spec section that will implement them, rather than doing nothing silently.
+Manual QC annotations (`good`/`debris`/`merge`/`split`/`other`, keyed by
+`(image_id, object_number)`) are stored under `results/<run-id>/qc/annotations.json` and
+never mutate `nuclei.parquet` — see `docs/measurement-dictionary.md`. Image-level QC metrics
+(intensity range, saturation fraction, a focus/blur proxy, occupied fraction) are already
+computed into every run's `fields.parquet` (spec section 21).
+
+Not yet implemented in this build: the interactive napari viewer (`qc`), which is the
+intended way to produce those annotations, and the static QC report (`qc-report`). Both
+currently exit with an explicit "not yet implemented" message naming the spec section that
+will implement them, rather than doing nothing silently.
 
 ## Exporting tables
 

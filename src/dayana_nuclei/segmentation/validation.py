@@ -62,18 +62,27 @@ class SplitMergeEstimate(BaseModel):
     """Heuristic over-/under-segmentation estimate (spec 22.2).
 
     Independent of the one-to-one Hungarian matching above: this looks at
-    *all* overlaps above ``iou_threshold`` (not just the best assignment),
-    so a reference object claimed by several prediction objects reports as
-    a probable split, and a prediction object covering several reference
-    objects reports as a probable merge. Disabled by default
-    (``validate_segmentation(estimate_split_merge=False)``) and always
-    reported as labels to preserve, not as a filter -- spec 22.2 requires
-    this stay a documented heuristic that never deletes rows.
+    *all* overlaps above ``containment_threshold`` (not just the best
+    assignment), so a reference object claimed by several prediction
+    objects reports as a probable split, and a prediction object covering
+    several reference objects reports as a probable merge. Disabled by
+    default (``validate_segmentation(estimate_split_merge=False)``) and
+    always reported as labels to preserve, not as a filter -- spec 22.2
+    requires this stay a documented heuristic that never deletes rows.
+
+    Uses containment (intersection / min(pred_area, ref_area)), not IoU:
+    for a reference object fragmented into n roughly-equal prediction
+    pieces, each fragment's IoU with the reference is ~1/n and drops below
+    any fixed IoU threshold as fragmentation gets worse -- exactly the
+    Cellpose-SAM 3D failure mode in docs/decisions/0008 (25-434 fragments
+    of one sphere). Containment stays ~1.0 for a fragment fully inside the
+    reference regardless of fragment count, so it is the metric that
+    actually detects this pathology.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    iou_threshold: float
+    containment_threshold: float
     probable_split_reference_labels: tuple[int, ...]
     probable_merge_prediction_labels: tuple[int, ...]
 
@@ -92,21 +101,30 @@ def _object_areas(labels: NDArray[np.integer[Any]]) -> dict[int, int]:
     return {int(v): int(c) for v, c in zip(values, counts, strict=True) if v != 0}
 
 
-def _iou_matrix(
+def _overlap_matrices(
     prediction: NDArray[np.integer[Any]],
     reference: NDArray[np.integer[Any]],
     pred_labels: list[int],
     ref_labels: list[int],
-) -> NDArray[np.float64]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Return (iou_matrix, containment_matrix) from one pass over the overlap.
+
+    IoU (intersection / union) is what Hungarian matching uses -- it
+    penalizes a partial or oversized prediction the way detection metrics
+    should. Containment (intersection / min(pred_area, ref_area)) is what
+    the split/merge heuristic uses -- see SplitMergeEstimate's docstring
+    for why IoU cannot detect fragmentation.
+    """
     pred_areas = _object_areas(prediction)
     ref_areas = _object_areas(reference)
     pred_index = {label: i for i, label in enumerate(pred_labels)}
     ref_index = {label: i for i, label in enumerate(ref_labels)}
     iou = np.zeros((len(pred_labels), len(ref_labels)), dtype=np.float64)
+    containment = np.zeros_like(iou)
 
     overlap = (prediction != 0) & (reference != 0)
     if not np.any(overlap):
-        return iou
+        return iou, containment
 
     pairs = np.stack(
         [prediction[overlap].astype(np.int64), reference[overlap].astype(np.int64)], axis=1
@@ -115,10 +133,16 @@ def _iou_matrix(
     for (pred_label, ref_label), intersection in zip(
         unique_pairs.tolist(), counts.tolist(), strict=True
     ):
-        union = pred_areas[pred_label] + ref_areas[ref_label] - intersection
+        pred_area = pred_areas[pred_label]
+        ref_area = ref_areas[ref_label]
+        i, j = pred_index[pred_label], ref_index[ref_label]
+        union = pred_area + ref_area - intersection
         if union > 0:
-            iou[pred_index[pred_label], ref_index[ref_label]] = intersection / union
-    return iou
+            iou[i, j] = intersection / union
+        min_area = min(pred_area, ref_area)
+        if min_area > 0:
+            containment[i, j] = intersection / min_area
+    return iou, containment
 
 
 def _precision_recall_f1(
@@ -133,13 +157,13 @@ def _precision_recall_f1(
 
 
 def _estimate_split_merge(
-    iou_matrix: NDArray[np.float64],
+    containment_matrix: NDArray[np.float64],
     pred_labels: list[int],
     ref_labels: list[int],
     *,
-    split_merge_iou_threshold: float,
+    containment_threshold: float,
 ) -> SplitMergeEstimate:
-    overlaps = iou_matrix > split_merge_iou_threshold
+    overlaps = containment_matrix > containment_threshold
     probable_splits = tuple(
         sorted(ref_labels[j] for j in range(len(ref_labels)) if overlaps[:, j].sum() > 1)
     )
@@ -147,7 +171,7 @@ def _estimate_split_merge(
         sorted(pred_labels[i] for i in range(len(pred_labels)) if overlaps[i, :].sum() > 1)
     )
     return SplitMergeEstimate(
-        iou_threshold=split_merge_iou_threshold,
+        containment_threshold=containment_threshold,
         probable_split_reference_labels=probable_splits,
         probable_merge_prediction_labels=probable_merges,
     )
@@ -160,7 +184,7 @@ def validate_segmentation(
     case_id: str = "case",
     iou_threshold: float = 0.5,
     estimate_split_merge: bool = False,
-    split_merge_iou_threshold: float = 0.1,
+    split_merge_containment_threshold: float = 0.5,
 ) -> SegmentationValidationReport:
     """Compare a predicted label image against a manually-reviewed reference.
 
@@ -177,7 +201,7 @@ def validate_segmentation(
 
     pred_labels = sorted(_object_areas(prediction))
     ref_labels = sorted(_object_areas(reference))
-    iou = _iou_matrix(prediction, reference, pred_labels, ref_labels)
+    iou, containment = _overlap_matrices(prediction, reference, pred_labels, ref_labels)
 
     matches: list[MatchResult] = []
     matched_pred_indices: set[int] = set()
@@ -241,7 +265,10 @@ def validate_segmentation(
 
     split_merge = (
         _estimate_split_merge(
-            iou, pred_labels, ref_labels, split_merge_iou_threshold=split_merge_iou_threshold
+            containment,
+            pred_labels,
+            ref_labels,
+            containment_threshold=split_merge_containment_threshold,
         )
         if estimate_split_merge
         else None
@@ -262,7 +289,7 @@ def validate_segmentation_from_files(
     case_id: str | None = None,
     iou_threshold: float = 0.5,
     estimate_split_merge: bool = False,
-    split_merge_iou_threshold: float = 0.1,
+    split_merge_containment_threshold: float = 0.5,
 ) -> SegmentationValidationReport:
     """Load two label-mask TIFFs (as written by ``io.masks.save_label_mask``,
     or any integer-labeled TIFF) and validate one against the other."""
@@ -276,7 +303,7 @@ def validate_segmentation_from_files(
         case_id=case_id or prediction_path.stem,
         iou_threshold=iou_threshold,
         estimate_split_merge=estimate_split_merge,
-        split_merge_iou_threshold=split_merge_iou_threshold,
+        split_merge_containment_threshold=split_merge_containment_threshold,
     )
 
 
@@ -285,17 +312,17 @@ def validate_segmentation_batch(
     *,
     iou_threshold: float = 0.5,
     estimate_split_merge: bool = False,
-    split_merge_iou_threshold: float = 0.1,
+    split_merge_containment_threshold: float = 0.5,
 ) -> list[SegmentationValidationReport]:
     """Validate a list of (case_id, prediction_path, reference_path) triples.
 
     Backs the batch CLI form (spec 14: "a batch form that consumes a
-    validation manifest"). One case failing to load does not abort the
-    batch, matching this project's field-level failure isolation
-    convention (spec 33) -- but validation is a pre-production scientific
-    gate, not a pipeline run, so a failure is raised with full context
-    immediately rather than silently skipped; callers that want partial
-    results should catch per-case if needed.
+    validation manifest"). A failure loading or validating any one case
+    raises immediately and aborts the whole batch -- unlike the main
+    pipeline's per-field failure isolation (spec 33), this is a
+    pre-production scientific gate, not a long unattended run, so a
+    partial/silently-incomplete validation report is a worse outcome than
+    stopping and surfacing the error.
     """
     return [
         validate_segmentation_from_files(
@@ -304,7 +331,7 @@ def validate_segmentation_batch(
             case_id=case_id,
             iou_threshold=iou_threshold,
             estimate_split_merge=estimate_split_merge,
-            split_merge_iou_threshold=split_merge_iou_threshold,
+            split_merge_containment_threshold=split_merge_containment_threshold,
         )
         for case_id, prediction_path, reference_path in cases
     ]

@@ -257,9 +257,11 @@ def validate_segmentation_command(
     prediction: Annotated[Path | None, typer.Option("--prediction", exists=True)] = None,
     reference: Annotated[Path | None, typer.Option("--reference", exists=True)] = None,
     manifest: Annotated[Path | None, typer.Option("--manifest", exists=True)] = None,
-    iou_threshold: Annotated[float, typer.Option("--iou-threshold")] = 0.5,
+    iou_threshold: Annotated[float, typer.Option("--iou-threshold", min=0.0, max=1.0)] = 0.5,
     estimate_split_merge: Annotated[bool, typer.Option("--estimate-split-merge")] = False,
-    split_merge_iou_threshold: Annotated[float, typer.Option("--split-merge-iou-threshold")] = 0.1,
+    split_merge_containment_threshold: Annotated[
+        float, typer.Option("--split-merge-containment-threshold", min=0.0, max=1.0)
+    ] = 0.5,
     output: Annotated[Path | None, typer.Option("--output")] = None,
 ) -> None:
     """Compare predicted vs. reference label masks (spec section 14).
@@ -296,7 +298,7 @@ def validate_segmentation_command(
             cases,
             iou_threshold=iou_threshold,
             estimate_split_merge=estimate_split_merge,
-            split_merge_iou_threshold=split_merge_iou_threshold,
+            split_merge_containment_threshold=split_merge_containment_threshold,
         )
     elif prediction is not None and reference is not None:
         reports = [
@@ -305,7 +307,7 @@ def validate_segmentation_command(
                 reference,
                 iou_threshold=iou_threshold,
                 estimate_split_merge=estimate_split_merge,
-                split_merge_iou_threshold=split_merge_iou_threshold,
+                split_merge_containment_threshold=split_merge_containment_threshold,
             )
         ]
     else:
