@@ -86,7 +86,11 @@ def test_frac_intensity_sums_to_one_when_intensity_nonzero() -> None:
     assert frac_total == pytest.approx(1.0, rel=1e-6)
 
 
-def test_small_object_may_have_empty_outer_bins_reported_as_none() -> None:
+def test_small_object_may_have_empty_inner_bins_reported_as_none() -> None:
+    """A 4-pixel object split into 5 equal-count bins cannot fill every bin:
+    with equal-pixel-count binning the innermost (deepest-interior) bins are
+    the ones left empty, since a shallow object has few/no pixels at that
+    rank -- not the outermost/boundary bin, which is always populated first."""
     labels = np.zeros((20, 20), dtype=np.int32)
     labels[9:11, 9:11] = 1  # 2x2 object, very shallow depth
     intensity = np.full(labels.shape, 50.0)
@@ -94,12 +98,11 @@ def test_small_object_may_have_empty_outer_bins_reported_as_none() -> None:
     results = measure_radial_distribution_2d(labels, intensity, radial_bins=5)
     values = results[0].model_dump(exclude={"object_number"})
 
-    # At least the outermost bin should exist and be well-formed (either a
-    # real mean or None with 0 frac_pixels), never raising or fabricating.
-    assert values["radial_bin4_frac_pixels"] >= 0.0
-    if values["radial_bin4_frac_pixels"] == 0.0:
-        assert values["radial_bin4_mean_intensity"] is None
-        assert values["radial_bin4_frac_intensity"] is None
+    assert values["radial_bin0_frac_pixels"] == 0.0
+    assert values["radial_bin0_mean_intensity"] is None
+    assert values["radial_bin0_frac_intensity"] is None
+    assert values["radial_bin4_frac_pixels"] > 0.0
+    assert values["radial_bin4_mean_intensity"] == pytest.approx(50.0)
 
 
 def test_rectangular_object_filling_its_own_bounding_box() -> None:
@@ -114,6 +117,38 @@ def test_rectangular_object_filling_its_own_bounding_box() -> None:
 
     assert values["radial_bin0_mean_intensity"] == pytest.approx(75.0)
     assert sum(values[f"radial_bin{b}_frac_pixels"] for b in range(3)) == pytest.approx(1.0)
+
+
+def test_bins_are_approximately_equal_area_not_equal_normalized_width() -> None:
+    """Regression for the equal-width-normalized-distance definition, where a
+    20 px-radius disk put ~4.6% of pixels in bin 0 and ~34% in the last bin
+    for 5 bins. Equal-pixel-count binning must keep every bin within a small
+    tolerance of 1/radial_bins, regardless of object shape."""
+    labels = np.zeros((60, 60), dtype=np.int32)
+    rr, cc = disk((30, 30), 20)
+    labels[rr, cc] = 1
+    intensity = np.full(labels.shape, 100.0)
+
+    results = measure_radial_distribution_2d(labels, intensity, radial_bins=5)
+    values = results[0].model_dump(exclude={"object_number"})
+    fracs = [values[f"radial_bin{b}_frac_pixels"] for b in range(5)]
+
+    for frac in fracs:
+        assert frac == pytest.approx(0.2, abs=0.03)
+
+
+def test_single_pixel_object_does_not_divide_by_zero() -> None:
+    labels = np.zeros((10, 10), dtype=np.int32)
+    labels[5, 5] = 1
+    intensity = np.full(labels.shape, 42.0)
+
+    results = measure_radial_distribution_2d(labels, intensity, radial_bins=5)
+    values = results[0].model_dump(exclude={"object_number"})
+
+    assert sum(values[f"radial_bin{b}_frac_pixels"] for b in range(5)) == pytest.approx(1.0)
+    populated = [b for b in range(5) if values[f"radial_bin{b}_frac_pixels"] > 0.0]
+    assert populated == [4]
+    assert values["radial_bin4_mean_intensity"] == pytest.approx(42.0)
 
 
 def test_3d_labels_raise() -> None:

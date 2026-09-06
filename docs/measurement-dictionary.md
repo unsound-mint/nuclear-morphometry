@@ -420,12 +420,14 @@ this measurement to have its own documented definition rather than blind parity 
 unclear legacy method. Column names are dynamic on the run's configured `radial_bins`
 (default 5, matching the legacy tool's bin count) — see `schema.nuclei_table_schema()`.
 
-- Definition: for each object, a per-pixel *normalized distance from the boundary* is
-  `1 - distance_to_edge / max_distance_to_edge`, where `distance_to_edge` is a Euclidean
-  distance transform of the object's own mask. This is 0 at the object's deepest interior
-  point(s) and 1 at the boundary — no geometric center is needed, so it is well-defined for
-  irregular/non-convex shapes (this project never assumes a nucleus is a circle or
-  ellipse). `[0, 1]` is divided into `radial_bins` equal-width bins; bin 0 is innermost.
+- Definition: for each object, a per-pixel *distance from the boundary* is computed via a
+  Euclidean distance transform of the object's own mask — no geometric center is needed, so
+  it is well-defined for irregular/non-convex shapes (this project never assumes a nucleus
+  is a circle or ellipse). Pixels are split into `radial_bins` **equal-pixel-count** groups
+  by rank of that distance (not equal-width ranges of the normalized distance, which for a
+  convex shape put only ~4.6% of pixels in the innermost bin and ~34% in the outermost, for
+  a 20 px-radius disk with 5 bins — see the module docstring). Bin 0 is the deepest-interior
+  group, the last bin is the group touching the boundary.
 
 ### `radial_bin{i}_mean_intensity`
 - Definition: mean intensity of pixels in bin `i`. `None` if the bin has zero pixels for

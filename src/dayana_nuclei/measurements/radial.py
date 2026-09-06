@@ -7,19 +7,28 @@ parity with an unclear legacy method (this project's whole premise per
 spec section 3 is fixing problems with that legacy workflow, not
 reproducing its opacity).
 
-Definition: for each object, a per-pixel **normalized distance from the
-boundary** is computed as ``1 - distance_to_edge / max_distance_to_edge``,
-where ``distance_to_edge`` is a Euclidean distance transform of the
-object's own mask (distance from each interior pixel to the nearest
-background pixel). This is 0 at the object's deepest interior point(s) and
-1 at the boundary. It requires no geometric center and is well-defined for
+Definition: for each object, a per-pixel **distance from the boundary** is
+computed via a Euclidean distance transform of the object's own mask
+(distance from each interior pixel to the nearest background pixel). Pixels
+are then split into ``radial_bins`` **equal-pixel-count** groups by rank of
+that distance -- not equal-width ranges of the (highly nonlinear) normalized
+distance -- so that each bin covers a comparable area regardless of object
+shape or size. Bin 0 is the group with the largest distances (the deepest
+interior), the last bin is the group with the smallest distances (touching
+the boundary). This requires no geometric center and is well-defined for
 irregular/non-convex shapes -- consistent with this project's invariant
 that a nucleus is never assumed to be a circle or ellipse (AGENTS.md,
 docs/decisions/0002).
 
-``[0, 1]`` is divided into ``radial_bins`` equal-width bins (default 5,
-matching spec 20's stated legacy parity target); bin 0 is the innermost
-bin, the last bin touches the boundary.
+An earlier version of this module bucketed by equal-width ranges of
+``1 - distance_to_edge / max_distance_to_edge``. Because distance-to-edge is
+attained at its maximum by only the one or few pixels on an object's medial
+axis, and grows roughly linearly with area moving outward, that scheme made
+the innermost bin nearly empty and the outermost bin dominant for any
+convex shape (e.g. a 20 px-radius disk put ~4.6% of pixels in bin 0 and
+~34% in the last bin, for 5 bins) -- not a meaningful "radial distribution"
+comparison. Equal-pixel-count binning was substituted for that reason; see
+this file's git history for the discarded definition.
 
 2D only, per spec 20's explicit title and its closing sentence ("Do not
 enable a 3D radial-distribution equivalent by default... it must have its
@@ -97,14 +106,21 @@ def measure_radial_distribution_2d(
         crop = tuple(slice(1, -1) for _ in range(mask.ndim))
         distance_to_edge = padded_distance[crop]
 
-        max_distance = float(distance_to_edge[mask].max())
-        normalized_distance_from_edge = 1.0 - (distance_to_edge / max_distance)
-        bin_index = np.clip(
-            (normalized_distance_from_edge * radial_bins).astype(np.int64), 0, radial_bins - 1
-        )
-
-        total_intensity = float(crop_intensity[mask].sum())
         total_pixels = int(mask.sum())
+        total_intensity = float(crop_intensity[mask].sum())
+
+        # Equal-pixel-count (equal-area) binning by rank of distance-to-edge,
+        # not equal-width ranges of a normalized distance -- see module
+        # docstring for why the latter is nearly-empty-innermost-bin biased.
+        pixel_distances = distance_to_edge[mask]
+        ascending_order = np.argsort(pixel_distances, kind="stable")
+        ascending_rank = np.empty(total_pixels, dtype=np.int64)
+        ascending_rank[ascending_order] = np.arange(total_pixels)
+        chunk = (ascending_rank * radial_bins) // total_pixels
+        pixel_bin = (radial_bins - 1) - chunk  # chunk 0 (smallest distance) -> last bin
+
+        bin_index = np.zeros(mask.shape, dtype=np.int64)
+        bin_index[mask] = pixel_bin
 
         values: dict[str, Any] = {}
         for b in range(radial_bins):
