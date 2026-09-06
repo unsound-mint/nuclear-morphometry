@@ -11,6 +11,7 @@ import polars as pl
 import typer
 
 from dayana_nuclei import provenance as prov
+from dayana_nuclei.compare_measurements import compare_measurements_from_files
 from dayana_nuclei.config import load_config
 from dayana_nuclei.export import prepare_analysis as _prepare_analysis
 from dayana_nuclei.io.manifest import (
@@ -377,15 +378,45 @@ def validate_segmentation_command(
 
 
 @app.command("compare-measurements")
-def compare_measurements(
+def compare_measurements_command(
     ours: Annotated[Path, typer.Option("--ours", exists=True)],
     reference: Annotated[Path, typer.Option("--reference", exists=True)],
     mapping: Annotated[Path, typer.Option("--mapping", exists=True)],
+    output: Annotated[Path | None, typer.Option("--output")] = None,
 ) -> None:
-    """Compare our measurements to legacy CellProfiler output on the same masks (spec 16.1)."""
-    _not_yet_implemented(
-        "compare-measurements", "Planned for the 2D-measurements phase (spec section 16.1)."
+    """Compare our measurements to legacy CellProfiler output on the same masks (spec 16.1).
+
+    Both --ours and --reference must already measure the SAME masks (spec
+    16.1): this isolates measurement-definition differences from
+    segmentation differences. --mapping is a TOML file naming the join keys
+    and the reference-column -> our-column measurement pairs to compare
+    (see configs/cellprofiler_mapping.toml for the expected shape).
+    """
+    report = compare_measurements_from_files(ours, reference, mapping)
+
+    typer.echo(
+        f"Matched {report.n_matched_objects} objects "
+        f"({report.n_only_in_ours} only in ours, {report.n_only_in_reference} only in reference)."
     )
+    for col in report.columns:
+        if col.n_both_finite == 0:
+            typer.echo(f"  {col.reference_column} -> {col.ours_column}: no comparable rows")
+            continue
+        relative = (
+            f"{col.mean_relative_difference:.4f}"
+            if col.mean_relative_difference is not None
+            else "undefined (all references 0)"
+        )
+        correlation = f"{col.pearson_r:.4f}" if col.pearson_r is not None else "undefined"
+        typer.echo(
+            f"  {col.reference_column} -> {col.ours_column}: n={col.n_both_finite}, "
+            f"mean_abs_diff={col.mean_absolute_difference:.4g}, "
+            f"mean_rel_diff={relative}, pearson_r={correlation}"
+        )
+
+    if output is not None:
+        output.write_text(report.model_dump_json(indent=2))
+        typer.echo(f"Wrote full comparison report to {output}")
 
 
 @app.command()

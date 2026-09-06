@@ -17,6 +17,9 @@ src/dayana_nuclei/
 ├── logging_utils.py       console + per-run file logging setup
 ├── export.py              atomic per-field Parquet writers, finalize_tables,
 │                          prepare_analysis
+├── compare_measurements.py legacy CellProfiler measurement-parity comparison
+│                          on the same masks (spec 16.1/28; backs
+│                          `compare-measurements` CLI)
 ├── cli.py                 Typer app; all `dayana-nuclei` subcommands
 │
 ├── io/
@@ -81,8 +84,7 @@ src/dayana_nuclei/
 ```
 
 Not yet implemented: `qc/viewer.py` (Phase 7 -- the interactive napari viewer, the intended
-way to actually produce manual annotations), `compare-measurements` (legacy CellProfiler
-parity).
+way to actually produce manual annotations).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 

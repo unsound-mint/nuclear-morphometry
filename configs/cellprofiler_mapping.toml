@@ -1,0 +1,35 @@
+# Example legacy CellProfiler measurement-parity mapping (spec section 16.1).
+#
+# Illustrative only: exact CellProfiler AreaShape_* naming depends on the
+# specific pipeline/module version that produced the legacy export. Verify
+# against the real legacy CSV's header before trusting this file, and add
+# an entry to docs/decisions/ if a mapped pair turns out not to be an exact
+# definitional match (spec 16.1: "if exact CellProfiler semantics are not
+# known ... document the difference").
+#
+# Precondition (spec 16.1): --ours and --reference must be measurements of
+# the SAME masks -- run this pipeline's measurement stage on CellProfiler's
+# own exported label masks, or vice versa, before comparing. This tool does
+# not compare segmentations; it isolates measurement-definition differences.
+
+[join]
+# Positionally paired: reference.reference[i] corresponds to ours.ours[i].
+# CellProfiler's own "ImageNumber"/"ObjectNumber" rarely correspond directly
+# to this project's image_id -- add an image_id column to the CellProfiler
+# export (or rename here) so both sides identify the same object by the
+# same key before running compare-measurements.
+reference = ["image_id", "ObjectNumber"]
+ours = ["image_id", "object_number"]
+
+[columns]
+"AreaShape_Area" = "area_px"
+"AreaShape_Perimeter" = "perimeter_px"
+"AreaShape_Eccentricity" = "eccentricity"
+"AreaShape_Solidity" = "solidity"
+"AreaShape_Extent" = "extent"
+# AreaShape_MajorAxisLength/MinorAxisLength are NOT mapped here: CellProfiler
+# reports these in pixels, this pipeline exports only major_axis_um/
+# minor_axis_um (no pixel-length columns), and this tool has no unit/scale
+# conversion -- mapping them directly would silently compare a pixel value
+# against a micron value. Add a *_axis_px column to Nucleus2DMorphology
+# first if this comparison is needed (see docs/decisions/0011).

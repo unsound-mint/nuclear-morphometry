@@ -217,6 +217,31 @@ Saves a full JSON report and a flat per-field Parquet table (same base name) und
 `<output_root>/benchmarks/` by default, for before/after comparison across code or config
 changes (spec section 32).
 
+## Legacy CellProfiler measurement comparison
+
+```bash
+uv run dayana-nuclei compare-measurements \
+    --ours results/<run-id>/nuclei.parquet \
+    --reference legacy_cellprofiler.csv \
+    --mapping configs/cellprofiler_mapping.toml \
+    [--output comparison.json]
+```
+
+The key scientific precondition (spec section 16.1): compare measurements on the **same
+masks** before comparing end-to-end segmentation pipelines, so segmentation differences
+never contaminate measurement-definition parity testing — run this pipeline's measurement
+stage on CellProfiler's own exported label masks, or export CellProfiler measurements
+against this pipeline's masks, before running this command. `--reference` accepts `.csv` or
+`.parquet`. `--mapping` is a TOML file naming the join keys (default
+`image_id`/`object_number` on both sides) and the reference-column → our-column measurement
+pairs to compare — see `configs/cellprofiler_mapping.toml` for the expected shape and its
+caveats. The report gives, per mapped measurement over matched objects: mean/median/max
+absolute difference, mean relative difference (`None` when every matched reference value is
+exactly 0 — never a fabricated number), and the Pearson correlation. Objects present on only
+one side are counted, never silently dropped. If exact CellProfiler semantics for a feature
+are unknown, this tool cannot tell you that — document the difference in `docs/decisions/`
+once you know it (spec 16.1).
+
 ## Exporting tables
 
 ```bash

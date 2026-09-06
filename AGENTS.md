@@ -138,8 +138,12 @@ I/O, segmentation normalization, GPU segmentation, mask serialization, morpholog
 intensity, texture, radial distribution, additional channels, QC, row assembly, and output
 timing per field, plus peak RSS/CUDA memory, image dimensions, and object counts; saves a
 JSON report
-and a Parquet table for before/after comparison), atomic per-field pipeline execution with
-resume, Parquet export, `prepare-analysis`, provenance, CI, and the full CLI surface
+and a Parquet table for before/after comparison), legacy CellProfiler measurement-parity
+comparison (`compare_measurements.py` + `compare-measurements` CLI, spec 16.1/28 -- joins on
+exact object-key match across two tables measuring the *same masks*, reports per-mapped-
+column absolute/relative difference and Pearson correlation with undefined-not-fabricated-
+zero semantics; does not attempt fuzzy object matching), atomic per-field pipeline execution
+with resume, Parquet export, `prepare-analysis`, provenance, CI, and the full CLI surface
 (unimplemented commands fail loudly rather than silently stubbing).
 
 **2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
@@ -158,9 +162,8 @@ is still required before trusting a 3D analysis run's object count or masks.
 
 Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
 plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
-produce manual annotations) and legacy measurement comparison (`compare-measurements`).
-These CLI commands currently exit with an explicit "not yet implemented" message rather
-than a bare stub.
+produce manual annotations). This CLI command currently exits with an explicit "not yet
+implemented" message rather than a bare stub.
 `measurements.texture_distances_um` (physical-scale texture mode) is config-valid but not
 yet wired into the pipeline (`run_pipeline` raises explaining why — cross-field calibration
 consistency needs solving first); use `texture_distances_px` for now.

@@ -19,7 +19,7 @@ Source channel: Hoechst-defined nuclear segmentation mask. Role: primary unless 
 - Dimensionality: 2D. Units: pixels².
 - Definition: count of pixels in the labeled object (`skimage.measure.regionprops` `area`).
 - Rationale: raw measurement underlying `area_um2`; also the legacy CellProfiler unit for
-  direct comparison via `compare-measurements` (not yet implemented).
+  direct comparison via `compare-measurements` (spec 16.1/28).
 - Role: secondary (audit/parity value; `area_um2` is primary).
 
 ### `area_um2`
