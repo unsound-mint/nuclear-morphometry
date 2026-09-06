@@ -215,6 +215,14 @@ _CHANNEL_KIND_BOOLEAN_SUFFIXES: dict[ChannelKind, tuple[str, ...]] = {
     "mitotracker_rings": MITOTRACKER_RING_BOOLEAN_SUFFIXES,
 }
 
+# --- 2D radial intensity distribution (spec section 20). Column names are
+# radial_bin{i}_{mean_intensity,frac_intensity,frac_pixels}, dynamic on the
+# run's configured bin count -- see nuclei_table_schema() and
+# measurements/radial.py::radial_bin_columns (kept in sync by
+# tests/unit/test_radial.py's schema-consistency check, matching the
+# existing texture-property duplication convention in this module). ---
+_RADIAL_BIN_PROPERTIES: tuple[str, ...] = ("mean_intensity", "frac_intensity", "frac_pixels")
+
 
 def nuclei_table_schema(
     *,
@@ -222,20 +230,25 @@ def nuclei_table_schema(
     include_texture: bool,
     texture_distances_px: tuple[int, ...] = (),
     additional_channels: tuple[tuple[str, ChannelKind], ...] = (),
+    radial_bins: int = 0,
 ) -> dict[str, pl.DataType | type[pl.DataType]]:
     """The full per-field nuclei schema for one run, resolved once from its config.
 
     Texture column names depend on the run's configured pixel distances
-    (spec 19.4), and additional-channel column names depend on the run's
-    configured channels/prefixes (spec 25) -- neither can be part of the
-    static BASE_NUCLEI_TABLE_SCHEMA. Call this once per run (config is fixed
-    for the run's duration) and reuse the same dict for every field -- that
-    is what guarantees every field's partial table shares one schema and can
-    be concatenated safely (see docs/decisions/0004-parquet-as-canonical-table.md),
-    including a field where a given additional channel was not present.
+    (spec 19.4), additional-channel column names depend on the run's
+    configured channels/prefixes (spec 25), and radial-distribution column
+    names depend on the run's configured bin count (spec 20) -- none of
+    these can be part of the static BASE_NUCLEI_TABLE_SCHEMA. Call this once
+    per run (config is fixed for the run's duration) and reuse the same
+    dict for every field -- that is what guarantees every field's partial
+    table shares one schema and can be concatenated safely (see
+    docs/decisions/0004-parquet-as-canonical-table.md), including a field
+    where a given additional channel was not present.
 
     ``additional_channels`` is a sequence of (prefix, kind) pairs, e.g.
     ``[("h3k9ac", "nuclear"), ("laminac", "lamin_shell_core")]``.
+    ``radial_bins`` is 0 when radial distribution is disabled (the default);
+    a positive value adds that many bins' worth of columns.
     """
     result = dict(BASE_NUCLEI_TABLE_SCHEMA)
     if include_intensity:
@@ -250,6 +263,9 @@ def nuclei_table_schema(
             result[f"{prefix}_{suffix}"] = pl.Float64
         for suffix in _CHANNEL_KIND_BOOLEAN_SUFFIXES[kind]:
             result[f"{prefix}_{suffix}"] = pl.Boolean
+    for radial_bin in range(radial_bins):
+        for prop in _RADIAL_BIN_PROPERTIES:
+            result[f"radial_bin{radial_bin}_{prop}"] = pl.Float64
     return result
 
 

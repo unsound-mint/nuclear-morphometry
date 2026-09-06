@@ -46,9 +46,13 @@ src/dayana_nuclei/
 │   │                       correlation/energy
 │   ├── lamin.py            shell/core intensity via a physically-calibrated
 │   │                       distance-from-boundary erosion (spec 25.3)
-│   └── spatial.py          MitoTracker near/far perinuclear ring intensity via
-│                           nearest-nucleus disambiguation (spec 25.4; see
-│                           docs/decisions/0009)
+│   ├── spatial.py          MitoTracker near/far perinuclear ring intensity via
+│   │                       nearest-nucleus disambiguation (spec 25.4; see
+│   │                       docs/decisions/0009)
+│   └── radial.py           2D-only radial intensity distribution: concentric bins
+│                           by normalized distance from the object's boundary
+│                           (spec 20; a from-scratch definition, not CellProfiler
+│                           parity)
 │
 ├── qc/
 │   ├── flags.py            compute_object_qc: border-only automatic exclusion
@@ -69,9 +73,9 @@ src/dayana_nuclei/
     └── run_state.py        per-field status tracking + resume logic
 ```
 
-Not yet implemented: `measurements/radial.py` (spec 20), `qc/viewer.py` (Phase 7 -- the
-interactive napari viewer, the intended way to actually produce manual annotations),
-`pipeline/benchmark.py` (spec 32), `compare-measurements` (legacy CellProfiler parity).
+Not yet implemented: `qc/viewer.py` (Phase 7 -- the interactive napari viewer, the intended
+way to actually produce manual annotations), `pipeline/benchmark.py` (spec 32),
+`compare-measurements` (legacy CellProfiler parity).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 
@@ -108,6 +112,11 @@ io.masks.save_label_mask                    measurements.morphology_2d / morphol
                                               measurements.texture.measure_texture_2d
                                               (if config.measurements.texture_2d and
                                                axes == YX; masked GLCM, never 3D)
+                                                          |
+                                              measurements.radial.measure_radial_distribution_2d
+                                              (if config.measurements.radial_distribution_2d
+                                               and axes == YX; concentric bins by normalized
+                                               boundary distance, never 3D, spec 20)
                                                           |
                                               per config.measurements.additional_channels:
                                               load_channel_volume(that channel) then

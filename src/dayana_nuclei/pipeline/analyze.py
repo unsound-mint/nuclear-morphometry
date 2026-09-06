@@ -35,6 +35,7 @@ from dayana_nuclei.measurements.intensity import measure_intensity
 from dayana_nuclei.measurements.lamin import measure_lamin_shell_core
 from dayana_nuclei.measurements.morphology_2d import Nucleus2DMorphology, measure_2d_morphology
 from dayana_nuclei.measurements.morphology_3d import Nucleus3DMorphology, measure_3d_morphology
+from dayana_nuclei.measurements.radial import measure_radial_distribution_2d
 from dayana_nuclei.measurements.spatial import measure_perinuclear_rings
 from dayana_nuclei.measurements.texture import measure_texture_2d
 from dayana_nuclei.models import ImageSource
@@ -158,6 +159,17 @@ def _process_field(
             )
         }
 
+    radial_by_object: dict[int, dict[str, Any]] = {}
+    if config.measurements.radial_distribution_2d and volume.axes == "YX":
+        radial_by_object = {
+            r.object_number: r.model_dump(exclude={"object_number"})
+            for r in measure_radial_distribution_2d(
+                result.labels,
+                volume.data,
+                radial_bins=config.measurements.radial_bins,
+            )
+        }
+
     # Additional channels (spec 25): always reuse result.labels, the
     # Hoechst-derived mask -- never re-segmented. A channel missing for this
     # particular field (spec 25.2: "if present") simply contributes no
@@ -231,6 +243,7 @@ def _process_field(
                 **morph.model_dump(exclude={"object_number"}),
                 **intensity_by_object.get(morph.object_number, {}),
                 **texture_by_object.get(morph.object_number, {}),
+                **radial_by_object.get(morph.object_number, {}),
                 **additional_by_object.get(morph.object_number, {}),
                 **qc.model_dump(),
             }
@@ -355,6 +368,9 @@ def run_pipeline(
         texture_distances_px=config.measurements.texture_distances_px,
         additional_channels=tuple(
             (entry.prefix, entry.kind) for entry in config.measurements.additional_channels
+        ),
+        radial_bins=(
+            config.measurements.radial_bins if config.measurements.radial_distribution_2d else 0
         ),
     )
 

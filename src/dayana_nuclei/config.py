@@ -209,6 +209,17 @@ class Config(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _check_radial_distribution_requires_2d(self) -> Config:
+        if self.measurements.radial_distribution_2d and self.analysis.mode != "2d":
+            raise ValueError(
+                'measurements.radial_distribution_2d = true requires analysis.mode = "2d" '
+                "(spec section 20: a 3D radial-distribution equivalent is not implemented "
+                "and must not be enabled without its own documented definition). Set "
+                "measurements.radial_distribution_2d = false for a 3D run."
+            )
+        return self
+
+    @model_validator(mode="after")
     def _check_cellpose_requires_normalization(self) -> Config:
         if (
             self.segmentation.backend == "cellpose"

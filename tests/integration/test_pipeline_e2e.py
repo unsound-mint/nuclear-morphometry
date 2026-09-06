@@ -294,6 +294,94 @@ def _build_texture_config_and_manifest(tmp_path: Path) -> Path:
     return config_path
 
 
+def _build_radial_config_and_manifest(tmp_path: Path) -> Path:
+    """Same fields as _build_config_and_manifest but with radial_distribution_2d
+    enabled and a non-default bin count, to prove nuclei_table_schema() is
+    genuinely derived from config rather than accidentally matching the default."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    field_a = data_dir / "field_a.tif"
+    _write_synthetic_field(field_a, elongated=False, border_object=False)
+
+    manifest_df = pl.DataFrame(
+        {
+            "image_id": ["SW620_Sort01_low_48h_Field001"],
+            "cell_line": ["SW620"],
+            "sort_id": ["Sort01"],
+            "condition": ["low"],
+            "timepoint": ["48h"],
+            "field": ["001"],
+            "channel": ["Channel:0:0"],
+            "path": [str(field_a)],
+            "scene": [None],
+            "acquisition_batch": [None],
+        }
+    )
+    result = validate_manifest(manifest_df)
+    assert result.is_valid, result.errors
+    manifest_path = tmp_path / "manifest.csv"
+    write_manifest_csv(manifest_df, manifest_path)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f"""
+        [experiment]
+        name = "e2e_radial_test"
+        manifest = "{manifest_path.as_posix()}"
+        output_root = "{(tmp_path / "results").as_posix()}"
+
+        [analysis]
+        mode = "2d"
+        projection = "none"
+
+        [input]
+        hoechst_channel = "Channel:0:0"
+
+        [segmentation]
+        backend = "fixture"
+        normalize_for_segmentation = false
+
+        [measurements]
+        radial_distribution_2d = true
+        radial_bins = 3
+
+        [output]
+        save_masks = false
+        write_csv = false
+        """
+    )
+    return config_path
+
+
+def test_end_to_end_run_with_radial_distribution_columns(tmp_path: Path) -> None:
+    """Same schema-mismatch class of bug as the texture e2e test: the pipeline's
+    row dict must match nuclei_table_schema()'s dynamically-derived radial-bin
+    column set for the configured (non-default) bin count."""
+    config_path = _build_radial_config_and_manifest(tmp_path)
+
+    run_dir = run_pipeline(config_path)
+
+    nuclei_df = pl.read_parquet(run_dir / "nuclei.parquet")
+    assert nuclei_df.height >= 1
+
+    expected_columns = {
+        f"radial_bin{b}_{prop}"
+        for b in range(3)
+        for prop in ("mean_intensity", "frac_intensity", "frac_pixels")
+    }
+    assert expected_columns <= set(nuclei_df.columns)
+    # A 4th bin (not requested) must NOT appear (proves the schema is config-derived).
+    assert "radial_bin3_mean_intensity" not in nuclei_df.columns
+
+    for column in expected_columns:
+        assert nuclei_df[column].null_count() == 0, column
+
+    from dayana_nuclei.export import prepare_analysis
+
+    out_path = prepare_analysis(run_dir)
+    assert pl.read_parquet(out_path).height == nuclei_df.height
+
+
 def test_end_to_end_run_with_texture_columns(tmp_path: Path) -> None:
     """Reproduces the class of bug caught in schema.NUCLEI_TABLE_SCHEMA (spec/decision
     0004): the pipeline's actual per-object row dict must match nuclei_table_schema()'s

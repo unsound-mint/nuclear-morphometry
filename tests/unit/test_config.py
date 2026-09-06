@@ -45,6 +45,30 @@ def test_texture_scale_modes_are_mutually_exclusive() -> None:
         Config.model_validate(data)
 
 
+def test_texture_2d_rejects_3d_mode() -> None:
+    data = _base_dict()
+    data["analysis"] = {"mode": "3d"}
+    data["measurements"] = {"texture_2d": True}
+    with pytest.raises(ValidationError, match="texture_2d"):
+        Config.model_validate(data)
+
+
+def test_radial_distribution_2d_rejects_3d_mode() -> None:
+    data = _base_dict()
+    data["analysis"] = {"mode": "3d"}
+    data["measurements"] = {"radial_distribution_2d": True}
+    with pytest.raises(ValidationError, match="radial_distribution_2d"):
+        Config.model_validate(data)
+
+
+def test_radial_distribution_2d_accepted_in_2d_mode() -> None:
+    data = _base_dict()
+    data["measurements"] = {"radial_distribution_2d": True, "radial_bins": 4}
+    config = Config.model_validate(data)
+    assert config.measurements.radial_distribution_2d is True
+    assert config.measurements.radial_bins == 4
+
+
 def test_cellpose_backend_rejects_disabled_normalization() -> None:
     data = _base_dict()
     data["segmentation"] = {"backend": "cellpose", "normalize_for_segmentation": False}

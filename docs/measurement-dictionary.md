@@ -411,11 +411,48 @@ configured rings rather than an arbitrary list.
 
 ---
 
+## 2D radial intensity distribution (`measurements/radial.py`, spec section 20)
+
+2D only, by contract (no `ndim==3` code path exists in this module) — spec 20 explicitly
+forbids enabling a 3D equivalent without its own documented definition. Deliberately does
+**not** replicate CellProfiler's internal radial-distribution algorithm; spec 20 requires
+this measurement to have its own documented definition rather than blind parity with an
+unclear legacy method. Column names are dynamic on the run's configured `radial_bins`
+(default 5, matching the legacy tool's bin count) — see `schema.nuclei_table_schema()`.
+
+- Definition: for each object, a per-pixel *normalized distance from the boundary* is
+  `1 - distance_to_edge / max_distance_to_edge`, where `distance_to_edge` is a Euclidean
+  distance transform of the object's own mask. This is 0 at the object's deepest interior
+  point(s) and 1 at the boundary — no geometric center is needed, so it is well-defined for
+  irregular/non-convex shapes (this project never assumes a nucleus is a circle or
+  ellipse). `[0, 1]` is divided into `radial_bins` equal-width bins; bin 0 is innermost.
+
+### `radial_bin{i}_mean_intensity`
+- Definition: mean intensity of pixels in bin `i`. `None` if the bin has zero pixels for
+  this object (possible for a very small or shallow object with fewer "depth levels" than
+  `radial_bins`).
+
+### `radial_bin{i}_frac_intensity`
+- Definition: bin `i`'s share of the object's total integrated intensity (sums to 1.0
+  across all bins for one object, when total intensity is nonzero). `None` under the same
+  conditions as `radial_bin{i}_mean_intensity`, or if total intensity is exactly 0.
+
+### `radial_bin{i}_frac_pixels`
+- Definition: bin `i`'s share of the object's total pixel count (sums to 1.0 across all
+  bins). Always a real number, `0.0` for an empty bin — never `None`, since pixel count
+  needs no intensity to be defined.
+- Caveat: `distance_transform_edt` on an object mask with no zero pixel inside its own
+  bounding box (e.g. an axis-aligned/rectangular object filling its bbox exactly) produces
+  meaningless distances unless padded first — same fix and rationale as
+  `measurements/lamin.py`.
+
+---
+
 ## Not yet implemented
 
-The following spec-required measurements have no code yet and are not documented above
-because there is nothing to audit: 2D radial intensity distribution (spec section 20) and
-the interactive napari QC viewer that produces manual annotations (spec section 23). This
-section will be replaced by real entries as each is implemented and tested, per this
+The following spec-required measurement has no code yet and is not documented above
+because there is nothing to audit: the interactive napari QC viewer that produces manual
+annotations (spec section 23). This section will be replaced by a real entry once it is
+implemented and tested, per this
 project's definition of done (`AGENTS.md`): documentation must describe actual code, not
 planned code.
