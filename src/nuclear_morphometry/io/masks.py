@@ -14,7 +14,7 @@ import numpy as np
 import tifffile
 from numpy.typing import NDArray
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 Axes = Literal["YX", "ZYX"]
 
@@ -82,7 +82,7 @@ def load_label_mask(path: Path) -> tuple[NDArray[np.integer[Any]], Axes]:
         if not meta or "axes" not in meta[0]:
             raise ValueError(
                 f"{path} does not contain the axes metadata written by "
-                f"save_label_mask; it may not be a dayana-nuclei mask file."
+                f"save_label_mask; it may not be a nuclear-morphometry mask file."
             )
         axes = meta[0]["axes"]
         if axes not in ("YX", "ZYX"):

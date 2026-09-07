@@ -50,7 +50,7 @@ from pydantic import BaseModel, ConfigDict
 from scipy.ndimage import gaussian_filter
 from skimage.measure import marching_cubes, mesh_surface_area, regionprops
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 _SURFACE_SMOOTH_SIGMA = 1.0
 _SURFACE_PAD_VOXELS = 3

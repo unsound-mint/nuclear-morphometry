@@ -527,64 +527,6 @@ distributed = [
 ]
 
 [[package]]
-name = "dayana-nuclei"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "bioio" },
-    { name = "bioio-czi" },
-    { name = "bioio-tifffile" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "polars" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "scikit-image" },
-    { name = "scipy" },
-    { name = "tifffile" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-benchmark" },
-    { name = "ruff" },
-]
-gpu = [
-    { name = "cellpose" },
-    { name = "torch" },
-]
-gui = [
-    { name = "napari", extra = ["pyqt6"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "bioio", specifier = ">=1.1" },
-    { name = "bioio-czi", specifier = ">=1.1" },
-    { name = "bioio-tifffile", specifier = ">=1.1" },
-    { name = "cellpose", marker = "extra == 'gpu'", specifier = ">=3.1" },
-    { name = "matplotlib", specifier = ">=3.9" },
-    { name = "napari", extras = ["pyqt6"], marker = "extra == 'gui'", specifier = ">=0.5" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "polars", specifier = ">=1.9" },
-    { name = "pyarrow", specifier = ">=17.0" },
-    { name = "pydantic", specifier = ">=2.9" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.380" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-    { name = "scikit-image", specifier = ">=0.24" },
-    { name = "scipy", specifier = ">=1.13" },
-    { name = "tifffile", specifier = ">=2024.8" },
-    { name = "torch", marker = "extra == 'gpu'", specifier = ">=2.4" },
-    { name = "typer", specifier = ">=0.12" },
-]
-provides-extras = ["gpu", "gui", "dev"]
-
-[[package]]
 name = "debugpy"
 version = "1.8.21"
 source = { registry = "https://pypi.org/simple" }
@@ -1399,6 +1341,64 @@ sdist = { url = "https://files.pythonhosted.org/packages/c0/a8/1b8a59b9554b64911
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/b1/5e0b586573ed6c5d4c497032d0d52780d597517e4f2ecfc13e63cfb364b3/npe2-0.9.0-py3-none-any.whl", hash = "sha256:d6db6dc37eebdd54b3c90b3eaeaa11a37f6dd0e9c8cc3f8b67c9a0e64e9e3ad0", size = 95850, upload-time = "2026-08-18T01:42:37.616Z" },
 ]
+
+[[package]]
+name = "nuclear-morphometry"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "bioio" },
+    { name = "bioio-czi" },
+    { name = "bioio-tifffile" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "scikit-image" },
+    { name = "scipy" },
+    { name = "tifffile" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "ruff" },
+]
+gpu = [
+    { name = "cellpose" },
+    { name = "torch" },
+]
+gui = [
+    { name = "napari", extra = ["pyqt6"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bioio", specifier = ">=1.1" },
+    { name = "bioio-czi", specifier = ">=1.1" },
+    { name = "bioio-tifffile", specifier = ">=1.1" },
+    { name = "cellpose", marker = "extra == 'gpu'", specifier = ">=3.1" },
+    { name = "matplotlib", specifier = ">=3.9" },
+    { name = "napari", extras = ["pyqt6"], marker = "extra == 'gui'", specifier = ">=0.5" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "polars", specifier = ">=1.9" },
+    { name = "pyarrow", specifier = ">=17.0" },
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.380" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "scikit-image", specifier = ">=0.24" },
+    { name = "scipy", specifier = ">=1.13" },
+    { name = "tifffile", specifier = ">=2024.8" },
+    { name = "torch", marker = "extra == 'gpu'", specifier = ">=2.4" },
+    { name = "typer", specifier = ">=0.12" },
+]
+provides-extras = ["gpu", "gui", "dev"]
 
 [[package]]
 name = "numcodecs"

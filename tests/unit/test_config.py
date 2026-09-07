@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from dayana_nuclei.config import Config, load_config
+from nuclear_morphometry.config import Config, load_config
 
 
 def _base_dict() -> dict:

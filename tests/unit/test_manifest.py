@@ -3,7 +3,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from dayana_nuclei.io.manifest import (
+from nuclear_morphometry.io.manifest import (
     build_manifest,
     read_manifest_csv,
     resolve_image_sources,

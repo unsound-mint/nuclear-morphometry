@@ -15,7 +15,7 @@ from pathlib import Path
 
 import polars as pl
 
-from dayana_nuclei.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
+from nuclear_morphometry.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
 
 logger = logging.getLogger(__name__)
 

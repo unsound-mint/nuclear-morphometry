@@ -13,9 +13,9 @@ import pytest
 import tifffile
 from skimage.draw import disk
 
-from dayana_nuclei.config import load_config
-from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.pipeline.benchmark import run_benchmark
+from nuclear_morphometry.config import load_config
+from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
+from nuclear_morphometry.pipeline.benchmark import run_benchmark
 
 
 def _write_synthetic_field(path: Path) -> None:

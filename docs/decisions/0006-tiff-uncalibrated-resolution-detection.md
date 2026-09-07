@@ -54,7 +54,7 @@ from this check by gating on the reader module name.
   analysis (`z_um` requirement) and calibrated-2D analysis (`x_um`/`y_um`
   requirement) with an actionable error, instead of silently proceeding
   with a fabricated 1.0 um/pixel calibration.
-- `dayana-nuclei inspect` surfaces this as an explicit warning
+- `nuclear-morphometry inspect` surfaces this as an explicit warning
   ("TIFF file has no resolution tag...") so a researcher reviewing a file
   before analysis sees the ambiguity immediately.
 - Synthetic test fixtures that need calibrated spacing must write a real

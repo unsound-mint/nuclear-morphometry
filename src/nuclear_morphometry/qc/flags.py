@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from dayana_nuclei.schema import EXCLUSION_REASON_BORDER
+from nuclear_morphometry.schema import EXCLUSION_REASON_BORDER
 
 
 class ObjectQCFlags(BaseModel):

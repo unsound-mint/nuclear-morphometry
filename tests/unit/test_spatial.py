@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from dayana_nuclei.measurements.spatial import measure_perinuclear_rings
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.measurements.spatial import measure_perinuclear_rings
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 def test_near_and_far_ring_intensities_are_measured() -> None:

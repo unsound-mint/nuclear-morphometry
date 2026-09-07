@@ -321,7 +321,7 @@ see `docs/decisions/0003-physical-units-for-3d.md`.
   `EXCLUSION_REASON_MANUAL_*` reason (or no exclusion, for `good`) only when folded into a
   nuclei table via `apply_annotations_to_nuclei` — never written back into
   `nuclei.parquet`.
-- This module is the storage/merge layer; `qc/viewer.py`'s interactive `dayana-nuclei qc`
+- This module is the storage/merge layer; `qc/viewer.py`'s interactive `nuclear-morphometry qc`
   (napari) is the intended way to actually produce these annotations by clicking through
   fields.
 

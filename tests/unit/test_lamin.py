@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from dayana_nuclei.measurements.lamin import measure_lamin_shell_core
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.measurements.lamin import measure_lamin_shell_core
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 def _disk_label(radius: int, *, shape: tuple[int, int] = (60, 60)) -> np.ndarray:

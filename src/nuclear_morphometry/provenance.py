@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dayana_nuclei.config import Config
+from nuclear_morphometry.config import Config
 
 
 def current_git_commit() -> str | None:
@@ -102,7 +102,7 @@ def build_provenance(
         "package_versions": {
             name: package_version(name)
             for name in (
-                "dayana-nuclei",
+                "nuclear-morphometry",
                 "numpy",
                 "scipy",
                 "scikit-image",

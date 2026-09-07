@@ -1,6 +1,6 @@
 """Structural and physical-calibration inspection of a microscopy file (spec section 10.5).
 
-Backs ``dayana-nuclei inspect``. Reads structure and calibration without
+Backs ``nuclear-morphometry inspect``. Reads structure and calibration without
 requiring pixel data to be loaded, and never fabricates a physical pixel
 size that the source file does not actually declare.
 """
@@ -104,7 +104,7 @@ def inspect_image(path: Path, scene: str | int | None = None) -> ImageInspection
     if not path.exists():
         raise FileNotFoundError(
             f"Cannot inspect {path}: file does not exist.\n"
-            f"Check the path and re-run: dayana-nuclei inspect {path}"
+            f"Check the path and re-run: nuclear-morphometry inspect {path}"
         )
 
     img = BioImage(path)

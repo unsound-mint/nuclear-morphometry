@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dayana_nuclei.qc.image_metrics import compute_image_qc_metrics
+from nuclear_morphometry.qc.image_metrics import compute_image_qc_metrics
 
 
 def test_basic_metrics_on_uint16_image() -> None:

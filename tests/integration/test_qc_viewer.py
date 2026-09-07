@@ -29,11 +29,11 @@ from skimage.draw import disk
 
 pytest.importorskip("napari")
 
-from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.io.masks import mask_path_for
-from dayana_nuclei.pipeline.analyze import run_pipeline
-from dayana_nuclei.qc.annotations import load_annotations
-from dayana_nuclei.qc.viewer import (
+from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
+from nuclear_morphometry.io.masks import mask_path_for
+from nuclear_morphometry.pipeline.analyze import run_pipeline
+from nuclear_morphometry.qc.annotations import load_annotations
+from nuclear_morphometry.qc.viewer import (
     _TAG_KEYS,
     _format_measurement_text,
     _selected_object_number,

@@ -12,8 +12,8 @@ from typing import Literal
 
 from bioio import BioImage
 
-from dayana_nuclei.io.metadata import read_physical_spacing
-from dayana_nuclei.models import ImageSource, ImageVolume, PhysicalSpacing
+from nuclear_morphometry.io.metadata import read_physical_spacing
+from nuclear_morphometry.models import ImageSource, ImageVolume, PhysicalSpacing
 
 Mode = Literal["2d", "3d"]
 Projection = Literal["none", "max", "mean", "specific_plane"]
@@ -69,7 +69,7 @@ def _resolve_scene(img: BioImage, source: ImageSource) -> None:
                 f"the manifest row for image_id={source.metadata.image_id!r}, "
                 f"channel={source.channel!r} does not specify one.\n\n"
                 f"Inspect the file with:\n"
-                f"  dayana-nuclei inspect {source.path}\n\n"
+                f"  nuclear-morphometry inspect {source.path}\n\n"
                 f"Then set the manifest's scene column to one of the scenes listed above."
             )
         img.set_scene(source.scene)
@@ -113,7 +113,7 @@ def load_channel_volume(
                 f"{source.metadata.image_id!r} has x_um={x_um}, y_um={y_um}, "
                 f"z_um={z_um}.\n\n"
                 f"Inspect the source with:\n"
-                f"  dayana-nuclei inspect {source.path}\n\n"
+                f"  nuclear-morphometry inspect {source.path}\n\n"
                 f"Then either fix the source/manifest metadata or supply an "
                 f"explicitly calibrated value from the acquisition record. "
                 f"The pipeline will not assume isotropic (1/1/1) voxel spacing."
@@ -128,7 +128,7 @@ def load_channel_volume(
             f"2D analysis requires physical X/Y spacing for calibrated output, but "
             f"{source.metadata.image_id!r} has x_um={x_um}, y_um={y_um}.\n\n"
             f"Inspect the source with:\n"
-            f"  dayana-nuclei inspect {source.path}\n\n"
+            f"  nuclear-morphometry inspect {source.path}\n\n"
             f"Then fix the source/manifest metadata before running 2D analysis."
         )
     spacing = PhysicalSpacing(x_um=x_um, y_um=y_um, z_um=None)

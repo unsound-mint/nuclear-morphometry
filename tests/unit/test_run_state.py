@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from dayana_nuclei.pipeline.run_state import (
+from nuclear_morphometry.pipeline.run_state import (
     incomplete_image_ids,
     init_run_state,
     load_run_state,

@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 try:
     import torch
@@ -61,7 +61,7 @@ def _synthetic_2d_field() -> np.ndarray:
 
 
 def test_cellpose_2d_inference_returns_integer_labels() -> None:
-    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+    from nuclear_morphometry.segmentation.cellpose_backend import CellposeSegmenter
 
     segmenter = CellposeSegmenter(
         model="cpsam_v2",
@@ -83,7 +83,7 @@ def test_cellpose_2d_inference_returns_integer_labels() -> None:
 
 
 def test_model_is_not_reloaded_between_segment_calls() -> None:
-    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+    from nuclear_morphometry.segmentation.cellpose_backend import CellposeSegmenter
 
     segmenter = CellposeSegmenter(
         model="cpsam_v2",
@@ -125,8 +125,8 @@ def test_cellpose_3d_inference_runs_and_returns_correct_shape() -> None:
     against a real reference mask set (spec section 14) before trusting any 3D
     result.
     """
-    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
-    from dayana_nuclei.segmentation.normalize import normalize_percentile
+    from nuclear_morphometry.segmentation.cellpose_backend import CellposeSegmenter
+    from nuclear_morphometry.segmentation.normalize import normalize_percentile
 
     segmenter = CellposeSegmenter(
         model="cpsam_v2",

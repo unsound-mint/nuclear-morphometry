@@ -19,3 +19,5 @@ data/
 !tests/**/*.tiff
 
 manifest.csv
+docs/Nuclear_Morphometry_Complete_Build_Spec.md
+docs/Thesis_Brief_for_CellProfiler_Agent.pdf

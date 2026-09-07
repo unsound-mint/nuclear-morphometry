@@ -22,12 +22,12 @@ from numpy.typing import NDArray
 from skimage.io import imsave
 from skimage.segmentation import mark_boundaries
 
-from dayana_nuclei.config import load_config
-from dayana_nuclei.io.images import Mode, Projection, load_channel_volume
-from dayana_nuclei.io.masks import load_label_mask
-from dayana_nuclei.models import ExperimentalMetadata, ImageSource
-from dayana_nuclei.qc.annotations import load_annotations
-from dayana_nuclei.segmentation.normalize import normalize_percentile
+from nuclear_morphometry.config import load_config
+from nuclear_morphometry.io.images import Mode, Projection, load_channel_volume
+from nuclear_morphometry.io.masks import load_label_mask
+from nuclear_morphometry.models import ExperimentalMetadata, ImageSource
+from nuclear_morphometry.qc.annotations import load_annotations
+from nuclear_morphometry.segmentation.normalize import normalize_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +275,7 @@ qc_excluded_default only per the run's config.</p>
 def generate_qc_report(run_dir: Path, *, seed: int = 0, n_overlays: int = 6) -> Path:
     """Build a self-contained HTML QC report + PNG overlays under ``run_dir/qc/``.
 
-    Backs ``dayana-nuclei qc-report`` (spec section 24). ``seed`` controls
+    Backs ``nuclear-morphometry qc-report`` (spec section 24). ``seed`` controls
     which fields are chosen for the representative overlays -- rerunning
     with the same seed on the same run reproduces the same selection.
     """
@@ -283,7 +283,7 @@ def generate_qc_report(run_dir: Path, *, seed: int = 0, n_overlays: int = 6) -> 
     fields_path = run_dir / "fields.parquet"
     if not nuclei_path.exists() or not fields_path.exists():
         raise FileNotFoundError(
-            f"{run_dir} has no nuclei.parquet/fields.parquet. Run `dayana-nuclei run` "
+            f"{run_dir} has no nuclei.parquet/fields.parquet. Run `nuclear-morphometry run` "
             f"(or resume/finalize an interrupted run) before generating a QC report."
         )
     nuclei_df = pl.read_parquet(nuclei_path)

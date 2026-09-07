@@ -21,15 +21,19 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from dayana_nuclei.config import load_config
-from dayana_nuclei.io.manifest import read_manifest_csv, resolve_image_sources, validate_manifest
-from dayana_nuclei.pipeline.analyze import (
+from nuclear_morphometry.config import load_config
+from nuclear_morphometry.io.manifest import (
+    read_manifest_csv,
+    resolve_image_sources,
+    validate_manifest,
+)
+from nuclear_morphometry.pipeline.analyze import (
     _process_field,
     build_segmenter,
     texture_distance_labels_um,
 )
-from dayana_nuclei.provenance import package_version
-from dayana_nuclei.schema import nuclei_table_schema
+from nuclear_morphometry.provenance import package_version
+from nuclear_morphometry.schema import nuclei_table_schema
 
 
 class StageTimings(BaseModel):
@@ -139,7 +143,7 @@ def run_benchmark(config_path: Path, *, limit: int | None = None) -> BenchmarkRe
     )
 
     fields: list[FieldBenchmark] = []
-    with tempfile.TemporaryDirectory(prefix="dayana-nuclei-benchmark-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="nuclear-morphometry-benchmark-") as scratch:
         run_dir = Path(scratch)
         for sub in ("masks", "partial/nuclei", "partial/fields"):
             (run_dir / sub).mkdir(parents=True, exist_ok=True)
@@ -168,7 +172,7 @@ def run_benchmark(config_path: Path, *, limit: int | None = None) -> BenchmarkRe
 
     return BenchmarkReport(
         config_path=str(config_path),
-        package_version=package_version("dayana-nuclei"),
+        package_version=package_version("nuclear-morphometry"),
         generated_at=datetime.now(UTC),
         segmentation_backend=config.segmentation.backend,
         segmentation_device=config.segmentation.device,

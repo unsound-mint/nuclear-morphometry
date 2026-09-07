@@ -4,7 +4,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from dayana_nuclei.compare_measurements import (
+from nuclear_morphometry.compare_measurements import (
     MeasurementMapping,
     compare_measurements,
     compare_measurements_from_files,

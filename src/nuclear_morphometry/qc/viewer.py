@@ -7,7 +7,7 @@ a plain function below so it can be (and is, in
 ``tests/integration/test_qc_viewer.py``) unit-tested without one. Callers
 outside this module (``cli.py``) must import it lazily, inside the ``qc``
 command body, since napari/Qt are the optional ``gui`` dependency group --
-importing this module unconditionally would make every ``dayana-nuclei``
+importing this module unconditionally would make every ``nuclear-morphometry``
 invocation require them.
 
 Never mutates the raw source image or the saved production mask: the
@@ -38,12 +38,12 @@ from napari.layers import Points as PointsLayer
 from numpy.typing import NDArray
 from skimage.measure import regionprops
 
-from dayana_nuclei.config import Config, load_config
-from dayana_nuclei.io.images import load_channel_volume
-from dayana_nuclei.io.manifest import resolve_image_sources
-from dayana_nuclei.io.masks import load_label_mask, mask_path_for
-from dayana_nuclei.models import ImageSource
-from dayana_nuclei.qc.annotations import ManualTag, load_annotations, save_annotation
+from nuclear_morphometry.config import Config, load_config
+from nuclear_morphometry.io.images import load_channel_volume
+from nuclear_morphometry.io.manifest import resolve_image_sources
+from nuclear_morphometry.io.masks import load_label_mask, mask_path_for
+from nuclear_morphometry.models import ImageSource
+from nuclear_morphometry.qc.annotations import ManualTag, load_annotations, save_annotation
 
 # Keyboard shortcuts for manual tags (spec 23). Checked empirically against
 # napari 0.9.1's default Viewer/Labels/Image keymaps: none of g/d/m/s/o are
@@ -194,8 +194,8 @@ def _load_run_context(run_dir: Path) -> _RunContext:
     manifest_path = run_dir / "manifest.parquet"
     if not (nuclei_path.exists() and fields_path.exists() and manifest_path.exists()):
         raise FileNotFoundError(
-            f"{run_dir} does not look like a finalized dayana-nuclei run directory (missing "
-            f"nuclei.parquet/fields.parquet/manifest.parquet). Run `dayana-nuclei run` (or "
+            f"{run_dir} does not look like a finalized nuclear-morphometry run directory (missing "
+            f"nuclei.parquet/fields.parquet/manifest.parquet). Run `nuclear-morphometry run` (or "
             f"resume/finalize an interrupted run) first."
         )
     config, _ = load_config(run_dir / "config.toml")
@@ -423,7 +423,7 @@ def build_qc_viewer(run_dir: Path, *, image_id: str | None = None) -> QCViewer:
             f"{initial_image_id!r} is not one of this run's analyzed fields: {ctx.image_ids}"
         )
 
-    viewer = napari.Viewer(show=False, title=f"dayana-nuclei QC: {run_dir.name}")
+    viewer = napari.Viewer(show=False, title=f"nuclear-morphometry QC: {run_dir.name}")
     qc_viewer = QCViewer(run_dir, viewer, ctx)
 
     info_label = Label(value="No object selected.")
@@ -461,7 +461,7 @@ def build_qc_viewer(run_dir: Path, *, image_id: str | None = None) -> QCViewer:
 
 def launch_qc_viewer(run_dir: Path, *, image_id: str | None = None) -> None:
     """Build the viewer and enter napari's blocking event loop -- the real
-    ``dayana-nuclei qc`` entry point. Never called by tests (see
+    ``nuclear-morphometry qc`` entry point. Never called by tests (see
     ``build_qc_viewer`` for the headlessly-testable half)."""
     build_qc_viewer(run_dir, image_id=image_id)
     napari.run()

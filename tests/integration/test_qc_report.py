@@ -12,10 +12,10 @@ import polars as pl
 import tifffile
 from skimage.draw import disk
 
-from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.pipeline.analyze import run_pipeline
-from dayana_nuclei.qc.annotations import save_annotation
-from dayana_nuclei.qc.report import generate_qc_report
+from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
+from nuclear_morphometry.pipeline.analyze import run_pipeline
+from nuclear_morphometry.qc.annotations import save_annotation
+from nuclear_morphometry.qc.report import generate_qc_report
 
 
 def _write_field(path: Path, *, seed: int) -> None:
@@ -126,7 +126,7 @@ def test_qc_report_overlay_selection_is_stratified() -> None:
             "sort_id": ["Sort01"] * 8,
         }
     )
-    from dayana_nuclei.qc.report import _select_stratified_overlays
+    from nuclear_morphometry.qc.report import _select_stratified_overlays
 
     selected = _select_stratified_overlays(fields_df, n=4, seed=0)
 
@@ -160,7 +160,7 @@ def test_qc_report_overlay_selection_covers_imbalanced_strata() -> None:
         }
     )
     fields_df = pl.concat([dominant, singletons])
-    from dayana_nuclei.qc.report import _select_stratified_overlays
+    from nuclear_morphometry.qc.report import _select_stratified_overlays
 
     selected = _select_stratified_overlays(fields_df, n=4, seed=0)
 
@@ -178,7 +178,7 @@ def test_qc_report_selection_is_deterministic_for_a_given_seed() -> None:
             "sort_id": ["Sort01"] * 10,
         }
     )
-    from dayana_nuclei.qc.report import _select_stratified_overlays
+    from nuclear_morphometry.qc.report import _select_stratified_overlays
 
     first = _select_stratified_overlays(fields_df, n=3, seed=42)
     second = _select_stratified_overlays(fields_df, n=3, seed=42)

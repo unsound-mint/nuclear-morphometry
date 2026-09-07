@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from dayana_nuclei.schema import ChannelKind
+from nuclear_morphometry.schema import ChannelKind
 
 Projection = Literal["none", "max", "mean", "specific_plane"]
 AnalysisMode = Literal["2d", "3d"]

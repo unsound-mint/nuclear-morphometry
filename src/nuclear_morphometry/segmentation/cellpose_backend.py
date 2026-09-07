@@ -32,8 +32,8 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from dayana_nuclei.models import PhysicalSpacing, SegmentationResult
-from dayana_nuclei.segmentation.base import SegmenterUnavailableError, validate_label_image
+from nuclear_morphometry.models import PhysicalSpacing, SegmentationResult
+from nuclear_morphometry.segmentation.base import SegmenterUnavailableError, validate_label_image
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def _resolve_model_name(model: str, *, allow_unvalidated_model: bool) -> str:
         'segmentation.model = "auto" requires a validated default model, and none has '
         "been selected yet for this project (spec section 11.1).\n\n"
         "Run segmentation validation to pick and accept a model:\n"
-        "  dayana-nuclei validate-segmentation --prediction <mask> --reference <mask>\n\n"
+        "  nuclear-morphometry validate-segmentation --prediction <mask> --reference <mask>\n\n"
         "Then set segmentation.model to that model's name/path explicitly in the "
         "config. If you only need to exercise the pipeline on non-final data, rerun "
         "with --allow-unvalidated-model to use the library's current default "
@@ -97,7 +97,7 @@ def _resolve_device(device: Literal["cuda", "cpu"]) -> torch.device:
         raise SegmenterUnavailableError(
             'segmentation.device = "cuda" but no CUDA device is available on this '
             "machine.\n\n"
-            "Run `dayana-nuclei doctor` to check GPU availability. Production runs "
+            "Run `nuclear-morphometry doctor` to check GPU availability. Production runs "
             "must not silently fall back to CPU (spec section 13.2); switch to "
             'segmentation.device = "cpu" explicitly if that is genuinely intended '
             "(development/debugging only)."

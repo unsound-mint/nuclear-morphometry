@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tifffile
 
-from dayana_nuclei.io.metadata import inspect_image
+from nuclear_morphometry.io.metadata import inspect_image
 
 
 def test_inspect_uncalibrated_tiff_reports_unknown_spacing(tmp_path: Path) -> None:

@@ -12,8 +12,8 @@ from pathlib import Path
 
 import polars as pl
 
-from dayana_nuclei.qc.annotations import apply_annotations_to_nuclei
-from dayana_nuclei.schema import include_default_expr
+from nuclear_morphometry.qc.annotations import apply_annotations_to_nuclei
+from nuclear_morphometry.schema import include_default_expr
 
 
 def partial_nuclei_path(run_dir: Path, image_id: str) -> Path:
@@ -68,7 +68,7 @@ def prepare_analysis(run_dir: Path) -> Path:
     if not nuclei_path.exists():
         raise FileNotFoundError(
             f"{nuclei_path} does not exist.\n\n"
-            f"Run `dayana-nuclei run <config>` (or `resume` an in-progress run) "
+            f"Run `nuclear-morphometry run <config>` (or `resume` an in-progress run) "
             f"to completion before `prepare-analysis`."
         )
     raw_df = pl.read_parquet(nuclei_path)

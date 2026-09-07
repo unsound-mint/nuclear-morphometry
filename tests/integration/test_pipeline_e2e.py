@@ -13,10 +13,10 @@ import pytest
 import tifffile
 from skimage.draw import disk, ellipse
 
-from dayana_nuclei.config import load_config
-from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.pipeline.analyze import run_pipeline
-from dayana_nuclei.pipeline.run_state import load_run_state
+from nuclear_morphometry.config import load_config
+from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
+from nuclear_morphometry.pipeline.analyze import run_pipeline
+from nuclear_morphometry.pipeline.run_state import load_run_state
 
 
 def _write_synthetic_field(path: Path, *, elongated: bool, border_object: bool) -> None:
@@ -203,7 +203,7 @@ def test_field_with_zero_objects_does_not_break_the_run(tmp_path: Path) -> None:
     assert nuclei_df.height >= 3
     assert set(nuclei_df.columns) >= {"qc_excluded_default", "qc_exclusion_reason"}
 
-    from dayana_nuclei.export import prepare_analysis
+    from nuclear_morphometry.export import prepare_analysis
 
     out_path = prepare_analysis(run_dir)
     assert pl.read_parquet(out_path).height == nuclei_df.height
@@ -213,8 +213,8 @@ def test_resume_retries_an_interrupted_running_field(tmp_path: Path) -> None:
     """spec 33: resume must retry a field that was mid-processing when the
     process died, not just pending/failed ones. Simulates a kill by hand-editing
     run_state.json to "running" and deleting that field's partial output."""
-    from dayana_nuclei.export import partial_nuclei_path
-    from dayana_nuclei.pipeline.run_state import save_run_state
+    from nuclear_morphometry.export import partial_nuclei_path
+    from nuclear_morphometry.pipeline.run_state import save_run_state
 
     config_path = _build_config_and_manifest(tmp_path)
     run_dir = run_pipeline(config_path)
@@ -411,7 +411,7 @@ def test_end_to_end_run_with_texture_distances_um(tmp_path: Path) -> None:
     for column in expected_columns:
         assert nuclei_df[column].null_count() == 0, column
 
-    from dayana_nuclei.export import prepare_analysis
+    from nuclear_morphometry.export import prepare_analysis
 
     out_path = prepare_analysis(run_dir)
     assert pl.read_parquet(out_path).height == nuclei_df.height
@@ -520,7 +520,7 @@ def test_end_to_end_run_with_radial_distribution_columns(tmp_path: Path) -> None
     for column in expected_columns:
         assert nuclei_df[column].null_count() == 0, column
 
-    from dayana_nuclei.export import prepare_analysis
+    from nuclear_morphometry.export import prepare_analysis
 
     out_path = prepare_analysis(run_dir)
     assert pl.read_parquet(out_path).height == nuclei_df.height
@@ -550,7 +550,7 @@ def test_end_to_end_run_with_texture_columns(tmp_path: Path) -> None:
         assert nuclei_df[column].null_count() == 0, column
 
     # finalize_tables' concat must succeed across fields with this schema too.
-    from dayana_nuclei.export import prepare_analysis
+    from nuclear_morphometry.export import prepare_analysis
 
     out_path = prepare_analysis(run_dir)
     assert pl.read_parquet(out_path).height == nuclei_df.height
@@ -657,7 +657,7 @@ def test_end_to_end_3d_run_via_fixture_backend(tmp_path: Path) -> None:
 
 
 def test_prepare_analysis_after_run(tmp_path: Path) -> None:
-    from dayana_nuclei.export import prepare_analysis
+    from nuclear_morphometry.export import prepare_analysis
 
     config_path = _build_config_and_manifest(tmp_path)
     run_dir = run_pipeline(config_path)

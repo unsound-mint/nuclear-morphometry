@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from dayana_nuclei.measurements.texture import (
+from nuclear_morphometry.measurements.texture import (
     format_um_distance_label,
     measure_texture_2d,
     quantize_for_texture,
     um_distances_to_pixels,
 )
-from dayana_nuclei.schema import nuclei_table_schema
+from nuclear_morphometry.schema import nuclei_table_schema
 
 
 def test_uniform_object_has_near_zero_contrast_and_entropy() -> None:

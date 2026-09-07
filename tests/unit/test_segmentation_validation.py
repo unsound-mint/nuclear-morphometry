@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from dayana_nuclei.io.masks import save_label_mask
-from dayana_nuclei.models import PhysicalSpacing
-from dayana_nuclei.segmentation.validation import (
+from nuclear_morphometry.io.masks import save_label_mask
+from nuclear_morphometry.models import PhysicalSpacing
+from nuclear_morphometry.segmentation.validation import (
     validate_segmentation,
     validate_segmentation_batch,
     validate_segmentation_from_files,

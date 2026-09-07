@@ -31,8 +31,8 @@ independent sorts. A manifest can include preliminary or incomplete data, but it
 described as the final thesis dataset.
 
 ```bash
-uv run dayana-nuclei manifest validate manifest.csv
-uv run dayana-nuclei inspect /path/to/representative-source.czi
+uv run nuclear-morphometry manifest validate manifest.csv
+uv run nuclear-morphometry inspect /path/to/representative-source.czi
 ```
 
 ## 3. Select and validate segmentation on real nuclei
@@ -50,7 +50,7 @@ accepted model, parameters, reference-set identity, metrics, and visual decision
 decision record. Do not use `--allow-unvalidated-model` for reportable results.
 
 ```bash
-uv run dayana-nuclei validate-segmentation \
+uv run nuclear-morphometry validate-segmentation \
   --manifest validation_cases.csv \
   --estimate-split-merge \
   --output validation_report.json
@@ -64,7 +64,7 @@ document any mathematical-definition difference; do not change expected outputs 
 force agreement.
 
 ```bash
-uv run dayana-nuclei compare-measurements \
+uv run nuclear-morphometry compare-measurements \
   --ours results/<run-id>/nuclei.parquet \
   --reference legacy_cellprofiler.csv \
   --mapping configs/cellprofiler_mapping.toml \
@@ -80,12 +80,12 @@ preliminary feature family but still require parity and physical-scale review.
 On a CUDA-capable machine with the selected model weights:
 
 ```bash
-uv run dayana-nuclei doctor
-uv run dayana-nuclei benchmark configs/final_3d.toml --limit 5
-uv run dayana-nuclei run configs/final_3d.toml
-uv run dayana-nuclei qc results/<run-id>
-uv run dayana-nuclei qc-report results/<run-id>
-uv run dayana-nuclei prepare-analysis results/<run-id>
+uv run nuclear-morphometry doctor
+uv run nuclear-morphometry benchmark configs/final_3d.toml --limit 5
+uv run nuclear-morphometry run configs/final_3d.toml
+uv run nuclear-morphometry qc results/<run-id>
+uv run nuclear-morphometry qc-report results/<run-id>
+uv run nuclear-morphometry prepare-analysis results/<run-id>
 ```
 
 Confirm complete Z coverage, saturation/focus acceptability, object counts, split/merge

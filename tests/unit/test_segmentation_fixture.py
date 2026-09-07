@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from dayana_nuclei.models import PhysicalSpacing
-from dayana_nuclei.segmentation.fixture import FixtureSegmenter
-from dayana_nuclei.segmentation.normalize import normalize_percentile
+from nuclear_morphometry.models import PhysicalSpacing
+from nuclear_morphometry.segmentation.fixture import FixtureSegmenter
+from nuclear_morphometry.segmentation.normalize import normalize_percentile
 
 
 def test_fixture_segmenter_is_deterministic() -> None:

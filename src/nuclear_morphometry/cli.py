@@ -1,4 +1,4 @@
-"""dayana-nuclei CLI (spec section 28)."""
+"""nuclear-morphometry CLI (spec section 28)."""
 
 from __future__ import annotations
 
@@ -10,19 +10,19 @@ from typing import Annotated
 import polars as pl
 import typer
 
-from dayana_nuclei import provenance as prov
-from dayana_nuclei.compare_measurements import compare_measurements_from_files
-from dayana_nuclei.config import load_config
-from dayana_nuclei.export import prepare_analysis as _prepare_analysis
-from dayana_nuclei.io.manifest import (
+from nuclear_morphometry import provenance as prov
+from nuclear_morphometry.compare_measurements import compare_measurements_from_files
+from nuclear_morphometry.config import load_config
+from nuclear_morphometry.export import prepare_analysis as _prepare_analysis
+from nuclear_morphometry.io.manifest import (
     build_manifest,
     read_manifest_csv,
     validate_manifest,
     write_manifest_csv,
 )
-from dayana_nuclei.pipeline.analyze import run_pipeline
-from dayana_nuclei.pipeline.benchmark import run_benchmark
-from dayana_nuclei.segmentation import validation as seg_validation
+from nuclear_morphometry.pipeline.analyze import run_pipeline
+from nuclear_morphometry.pipeline.benchmark import run_benchmark
+from nuclear_morphometry.segmentation import validation as seg_validation
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 manifest_app = typer.Typer(
@@ -65,7 +65,7 @@ def doctor(json_output: Annotated[bool, typer.Option("--json")] = False) -> None
 
     info = {
         "python_version": prov.platform.python_version(),
-        "package_version": prov.package_version("dayana-nuclei"),
+        "package_version": prov.package_version("nuclear-morphometry"),
         "torch": torch_info,
         "cellpose": cellpose_info,
         "bioio_czi_importable": bioio_czi_ok,
@@ -81,7 +81,7 @@ def doctor(json_output: Annotated[bool, typer.Option("--json")] = False) -> None
         typer.echo(json.dumps(info, indent=2))
     else:
         typer.echo(f"Python:          {info['python_version']}")
-        typer.echo(f"dayana-nuclei:   {info['package_version']}")
+        typer.echo(f"nuclear-morphometry:   {info['package_version']}")
         typer.echo(
             f"Torch:           {torch_info.get('version', 'not installed')} "
             f"(CUDA available: {torch_info.get('cuda_available', False)})"
@@ -107,7 +107,7 @@ def inspect(
     json_output: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Print a structured summary of a CZI/TIFF file (spec section 10.5)."""
-    from dayana_nuclei.io.metadata import inspect_image
+    from nuclear_morphometry.io.metadata import inspect_image
 
     result = inspect_image(path, scene=scene)
     if json_output:
@@ -429,12 +429,12 @@ def qc(
     """Launch the interactive napari QC viewer for a run (spec section 23).
 
     Requires the optional 'gui' dependency group (napari + Qt) -- imported
-    here, not at module load, so every other `dayana-nuclei` command keeps
+    here, not at module load, so every other `nuclear-morphometry` command keeps
     working without it (AGENTS.md: "the computational core must not depend
     on napari or Qt").
     """
     try:
-        from dayana_nuclei.qc.viewer import launch_qc_viewer
+        from nuclear_morphometry.qc.viewer import launch_qc_viewer
     except ImportError as exc:
         typer.echo(
             f"The QC viewer requires the optional 'gui' dependency group (napari + Qt), "
@@ -456,7 +456,7 @@ def qc_report(
     Overlay field selection is stratified across cell line / condition /
     SortID and seeded by --seed for reproducibility.
     """
-    from dayana_nuclei.qc.report import generate_qc_report
+    from nuclear_morphometry.qc.report import generate_qc_report
 
     report_path = generate_qc_report(run_dir, seed=seed, n_overlays=n_overlays)
     typer.echo(f"Wrote QC report to {report_path}")

@@ -24,7 +24,7 @@ from typing import Literal
 import polars as pl
 from pydantic import BaseModel, ConfigDict
 
-from dayana_nuclei.schema import (
+from nuclear_morphometry.schema import (
     EXCLUSION_REASON_MANUAL_DEBRIS,
     EXCLUSION_REASON_MANUAL_MERGE,
     EXCLUSION_REASON_MANUAL_OTHER,

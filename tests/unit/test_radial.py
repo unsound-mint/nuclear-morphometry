@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from dayana_nuclei.measurements.radial import (
+from nuclear_morphometry.measurements.radial import (
     measure_radial_distribution_2d,
     radial_bin_columns,
 )
@@ -181,7 +181,7 @@ def test_radial_bin_columns_matches_nuclei_table_schema() -> None:
     project's existing texture-property duplication convention) rather than
     importing measurements/ from schema.py -- this test is what keeps the
     two definitions from drifting apart."""
-    from dayana_nuclei.schema import nuclei_table_schema
+    from nuclear_morphometry.schema import nuclei_table_schema
 
     for n in (1, 3, 5):
         expected = set(radial_bin_columns(n))

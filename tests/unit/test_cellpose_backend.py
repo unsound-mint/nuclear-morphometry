@@ -15,9 +15,9 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from dayana_nuclei.models import PhysicalSpacing
-from dayana_nuclei.segmentation.base import SegmenterUnavailableError
-from dayana_nuclei.segmentation.cellpose_backend import (
+from nuclear_morphometry.models import PhysicalSpacing
+from nuclear_morphometry.segmentation.base import SegmenterUnavailableError
+from nuclear_morphometry.segmentation.cellpose_backend import (
     DEMO_DEFAULT_MODEL,
     _resolve_device,
     _resolve_model_name,

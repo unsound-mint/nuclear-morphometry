@@ -1,7 +1,7 @@
 """Core domain model.
 
 These types encode the scientific invariants of the pipeline (see
-``Dayana_Nuclei_Complete_Build_Spec.md`` sections 1.3 and 8): physical
+``Nuclear_Morphometry_Complete_Build_Spec.md`` sections 1.3 and 8): physical
 calibration is never assumed, and every nucleus stays traceable to its
 biological replicate (SortID) and source image.
 """
@@ -39,7 +39,7 @@ class PhysicalSpacing(BaseModel):
                 f"3D analysis requires physical Z spacing, but no Z step was found "
                 f"for {context}.\n\n"
                 f"Inspect the source with:\n"
-                f"  dayana-nuclei inspect <path>\n\n"
+                f"  nuclear-morphometry inspect <path>\n\n"
                 f"Then either fix the source/manifest metadata or supply an "
                 f"explicitly calibrated value from the acquisition record. "
                 f"The pipeline will not assume Z=1."

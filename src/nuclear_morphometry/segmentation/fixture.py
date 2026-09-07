@@ -15,8 +15,8 @@ from numpy.typing import NDArray
 from skimage.filters import threshold_otsu
 from skimage.measure import label
 
-from dayana_nuclei.models import PhysicalSpacing, SegmentationResult
-from dayana_nuclei.segmentation.base import validate_label_image
+from nuclear_morphometry.models import PhysicalSpacing, SegmentationResult
+from nuclear_morphometry.segmentation.base import validate_label_image
 
 
 class FixtureSegmenter:

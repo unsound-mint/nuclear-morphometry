@@ -2,7 +2,7 @@
 
 All segmentation backends (Cellpose, the deterministic fixture backend used
 in tests) implement :class:`Segmenter`. Downstream measurement and QC code
-must depend only on this protocol and on :class:`~dayana_nuclei.models.SegmentationResult`
+must depend only on this protocol and on :class:`~nuclear_morphometry.models.SegmentationResult`
 -- never on a specific backend's internals.
 """
 
@@ -13,7 +13,7 @@ from typing import Any, Protocol, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
-from dayana_nuclei.models import PhysicalSpacing, SegmentationResult
+from nuclear_morphometry.models import PhysicalSpacing, SegmentationResult
 
 
 @runtime_checkable

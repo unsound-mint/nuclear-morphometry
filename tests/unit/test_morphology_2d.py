@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from skimage.draw import disk, ellipse
 
-from dayana_nuclei.measurements.morphology_2d import measure_2d_morphology
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.measurements.morphology_2d import measure_2d_morphology
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 def test_circle_has_high_circularity_and_known_area() -> None:

@@ -1,13 +1,13 @@
 # Architecture
 
-This describes the repository as it actually exists. See `Dayana_Nuclei_Complete_Build_Spec.md`
+This describes the repository as it actually exists. See `Nuclear_Morphometry_Complete_Build_Spec.md`
 section 52 for the full phase plan and `AGENTS.md` for the current implementation status
 summary.
 
 ## Module boundaries
 
 ```
-src/dayana_nuclei/
+src/nuclear_morphometry/
 ├── models.py            domain types: PhysicalSpacing, ExperimentalMetadata,
 │                         ImageSource, ImageVolume, SegmentationResult, RunIdentity
 ├── config.py             Pydantic TOML config schema (Config, *Config sub-models)
@@ -20,7 +20,7 @@ src/dayana_nuclei/
 ├── compare_measurements.py legacy CellProfiler measurement-parity comparison
 │                          on the same masks (spec 16.1/28; backs
 │                          `compare-measurements` CLI)
-├── cli.py                 Typer app; all `dayana-nuclei` subcommands
+├── cli.py                 Typer app; all `nuclear-morphometry` subcommands
 │
 ├── io/
 │   ├── metadata.py        ImageInspection + inspect_image (backs `inspect`)

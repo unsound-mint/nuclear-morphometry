@@ -26,7 +26,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 from skimage.measure import regionprops
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 class Nucleus2DMorphology(BaseModel):

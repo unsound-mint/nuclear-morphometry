@@ -1,9 +1,9 @@
 import pytest
 
-from dayana_nuclei.config import Config
-from dayana_nuclei.pipeline.analyze import build_segmenter
-from dayana_nuclei.segmentation.base import SegmenterUnavailableError
-from dayana_nuclei.segmentation.fixture import FixtureSegmenter
+from nuclear_morphometry.config import Config
+from nuclear_morphometry.pipeline.analyze import build_segmenter
+from nuclear_morphometry.segmentation.base import SegmenterUnavailableError
+from nuclear_morphometry.segmentation.fixture import FixtureSegmenter
 
 
 def _config(**segmentation_overrides: object) -> Config:

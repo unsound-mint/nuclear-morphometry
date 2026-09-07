@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from dayana_nuclei.measurements.morphology_3d import measure_3d_morphology
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.measurements.morphology_3d import measure_3d_morphology
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 def _sphere_labels(radius_vox: int, margin: int = 5) -> np.ndarray:

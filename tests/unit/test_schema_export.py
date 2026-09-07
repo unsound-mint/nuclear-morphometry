@@ -2,15 +2,15 @@ from pathlib import Path
 
 import polars as pl
 
-from dayana_nuclei.export import (
+from nuclear_morphometry.export import (
     finalize_tables,
     partial_fields_path,
     partial_nuclei_path,
     prepare_analysis,
     write_partial_table,
 )
-from dayana_nuclei.qc.annotations import save_annotation
-from dayana_nuclei.schema import compute_include_default, include_default_expr
+from nuclear_morphometry.qc.annotations import save_annotation
+from nuclear_morphometry.schema import compute_include_default, include_default_expr
 
 
 def test_compute_include_default_inverts_exclusion() -> None:

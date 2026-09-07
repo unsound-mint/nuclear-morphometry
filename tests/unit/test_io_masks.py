@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from dayana_nuclei.io.masks import load_label_mask, mask_path_for, save_label_mask
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.io.masks import load_label_mask, mask_path_for, save_label_mask
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 def test_mask_path_for_is_deterministic(tmp_path: Path) -> None:

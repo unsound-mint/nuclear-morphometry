@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict
 from scipy.ndimage import distance_transform_edt
 from skimage.measure import regionprops
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 class NucleusLaminIntensity(BaseModel):

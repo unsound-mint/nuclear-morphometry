@@ -1,5 +1,5 @@
 [experiment]
-name = "dayana_thesis_multichannel_example"
+name = "thesis_multichannel_example"
 manifest = "manifest.csv"
 output_root = "results"
 
@@ -11,7 +11,7 @@ hoechst_channel = "Hoechst"
 strict_physical_spacing = true
 additional_channels = ["LaminA-C", "H3K9Ac", "MitoTracker"]
 # Each name above must match a real channel name embedded in the source
-# file(s) (see `dayana-nuclei inspect <path>`) -- these are illustrative,
+# file(s) (see `nuclear-morphometry inspect <path>`) -- these are illustrative,
 # not universal defaults.
 
 [segmentation]

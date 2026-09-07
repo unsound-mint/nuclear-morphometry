@@ -23,30 +23,40 @@ from typing import Any
 
 import polars as pl
 
-from dayana_nuclei.config import Config, load_config
-from dayana_nuclei.export import (
+from nuclear_morphometry.config import Config, load_config
+from nuclear_morphometry.export import (
     finalize_tables,
     partial_fields_path,
     partial_nuclei_path,
     write_partial_table,
 )
-from dayana_nuclei.io.images import load_channel_volume
-from dayana_nuclei.io.manifest import read_manifest_csv, resolve_image_sources, validate_manifest
-from dayana_nuclei.io.masks import mask_path_for, save_label_mask
-from dayana_nuclei.logging_utils import setup_logging
-from dayana_nuclei.measurements.intensity import measure_intensity
-from dayana_nuclei.measurements.lamin import measure_lamin_shell_core
-from dayana_nuclei.measurements.morphology_2d import Nucleus2DMorphology, measure_2d_morphology
-from dayana_nuclei.measurements.morphology_3d import Nucleus3DMorphology, measure_3d_morphology
-from dayana_nuclei.measurements.radial import measure_radial_distribution_2d
-from dayana_nuclei.measurements.spatial import measure_perinuclear_rings
-from dayana_nuclei.measurements.texture import (
+from nuclear_morphometry.io.images import load_channel_volume
+from nuclear_morphometry.io.manifest import (
+    read_manifest_csv,
+    resolve_image_sources,
+    validate_manifest,
+)
+from nuclear_morphometry.io.masks import mask_path_for, save_label_mask
+from nuclear_morphometry.logging_utils import setup_logging
+from nuclear_morphometry.measurements.intensity import measure_intensity
+from nuclear_morphometry.measurements.lamin import measure_lamin_shell_core
+from nuclear_morphometry.measurements.morphology_2d import (
+    Nucleus2DMorphology,
+    measure_2d_morphology,
+)
+from nuclear_morphometry.measurements.morphology_3d import (
+    Nucleus3DMorphology,
+    measure_3d_morphology,
+)
+from nuclear_morphometry.measurements.radial import measure_radial_distribution_2d
+from nuclear_morphometry.measurements.spatial import measure_perinuclear_rings
+from nuclear_morphometry.measurements.texture import (
     format_um_distance_label,
     measure_texture_2d,
     um_distances_to_pixels,
 )
-from dayana_nuclei.models import ImageSource, ImageVolume
-from dayana_nuclei.pipeline.run_state import (
+from nuclear_morphometry.models import ImageSource, ImageVolume
+from nuclear_morphometry.pipeline.run_state import (
     FieldState,
     incomplete_image_ids,
     init_run_state,
@@ -56,13 +66,13 @@ from dayana_nuclei.pipeline.run_state import (
     mark_running,
     save_run_state,
 )
-from dayana_nuclei.provenance import build_provenance, current_git_commit, finalize_provenance
-from dayana_nuclei.qc.flags import compute_object_qc
-from dayana_nuclei.qc.image_metrics import compute_image_qc_metrics
-from dayana_nuclei.schema import nuclei_table_schema
-from dayana_nuclei.segmentation.base import Segmenter
-from dayana_nuclei.segmentation.fixture import FixtureSegmenter
-from dayana_nuclei.segmentation.normalize import normalize_percentile
+from nuclear_morphometry.provenance import build_provenance, current_git_commit, finalize_provenance
+from nuclear_morphometry.qc.flags import compute_object_qc
+from nuclear_morphometry.qc.image_metrics import compute_image_qc_metrics
+from nuclear_morphometry.schema import nuclei_table_schema
+from nuclear_morphometry.segmentation.base import Segmenter
+from nuclear_morphometry.segmentation.fixture import FixtureSegmenter
+from nuclear_morphometry.segmentation.normalize import normalize_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +87,7 @@ def build_segmenter(config: Config, *, allow_unvalidated_model: bool = False) ->
     if config.segmentation.backend == "fixture":
         return FixtureSegmenter()
 
-    from dayana_nuclei.segmentation.cellpose_backend import CellposeSegmenter
+    from nuclear_morphometry.segmentation.cellpose_backend import CellposeSegmenter
 
     seg = config.segmentation
     return CellposeSegmenter(
@@ -453,7 +463,7 @@ def run_pipeline(
         if run_dir.exists():
             raise FileExistsError(
                 f"Run directory {run_dir} already exists. Refusing to overwrite an "
-                f"existing run (spec section 50). Use `dayana-nuclei resume {run_dir}` "
+                f"existing run (spec section 50). Use `nuclear-morphometry resume {run_dir}` "
                 f"if you intend to continue it."
             )
         for sub in ("masks", "qc", "logs", "partial/nuclei", "partial/fields"):

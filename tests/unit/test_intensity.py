@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dayana_nuclei.measurements.intensity import measure_intensity
+from nuclear_morphometry.measurements.intensity import measure_intensity
 
 
 def test_2d_constant_intensity_objects() -> None:

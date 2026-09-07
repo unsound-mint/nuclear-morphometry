@@ -22,7 +22,7 @@
 ### Task 1: Fold manual QC into the derived analysis table
 
 **Files:**
-- Modify: `src/dayana_nuclei/export.py`
+- Modify: `src/nuclear_morphometry/export.py`
 - Modify: `tests/unit/test_schema_export.py`
 
 **Interfaces:**
@@ -81,7 +81,7 @@
 ### Task 5: Enforce multi-channel physical consistency
 
 **Files:**
-- Modify: `src/dayana_nuclei/pipeline/analyze.py`
+- Modify: `src/nuclear_morphometry/pipeline/analyze.py`
 - Modify: `tests/integration/test_multichannel_pipeline.py`
 - Create: `docs/decisions/0013-multichannel-spacing-consistency.md`
 
@@ -96,9 +96,9 @@
 ### Task 6: Make acquisition-record calibration usable
 
 **Files:**
-- Modify: `src/dayana_nuclei/models.py`
-- Modify: `src/dayana_nuclei/io/manifest.py`
-- Modify: `src/dayana_nuclei/io/images.py`
+- Modify: `src/nuclear_morphometry/models.py`
+- Modify: `src/nuclear_morphometry/io/manifest.py`
+- Modify: `src/nuclear_morphometry/io/images.py`
 - Modify: `tests/unit/test_manifest.py`
 - Modify: `tests/unit/test_io_images.py`
 - Create: `docs/decisions/0014-explicit-manifest-spacing-overrides.md`

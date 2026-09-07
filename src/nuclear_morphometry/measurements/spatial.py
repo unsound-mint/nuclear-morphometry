@@ -28,7 +28,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 from scipy.ndimage import distance_transform_edt
 
-from dayana_nuclei.models import PhysicalSpacing
+from nuclear_morphometry.models import PhysicalSpacing
 
 
 class NucleusPerinuclearIntensity(BaseModel):

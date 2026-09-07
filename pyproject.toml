@@ -1,5 +1,5 @@
 [project]
-name = "dayana-nuclei"
+name = "nuclear-morphometry"
 version = "0.1.0"
 description = "GPU-first microscopy analysis pipeline for BIOL 490 thesis (colorectal-cancer nuclei, 2D/3D)"
 readme = "README.md"
@@ -36,14 +36,14 @@ dev = [
 ]
 
 [project.scripts]
-dayana-nuclei = "dayana_nuclei.cli:app"
+nuclear-morphometry = "nuclear_morphometry.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/dayana_nuclei"]
+packages = ["src/nuclear_morphometry"]
 
 [tool.uv]
 default-groups = []

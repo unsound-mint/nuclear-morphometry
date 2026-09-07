@@ -171,5 +171,5 @@ pipeline: `_process_field` converts per-field, names columns by the configured u
 the per-field resolved pixel distance), and requires square X/Y pixels for the field being
 measured. See `docs/decisions/0012-texture-um-distance-column-naming.md`.
 
-With this, `Dayana_Nuclei_Complete_Build_Spec.md` section 52's phase plan is fully
+With this, `Nuclear_Morphometry_Complete_Build_Spec.md` section 52's phase plan is fully
 implemented.

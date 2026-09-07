@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import tifffile
 
-from dayana_nuclei.io.images import load_channel_volume
-from dayana_nuclei.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
+from nuclear_morphometry.io.images import load_channel_volume
+from nuclear_morphometry.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
 
 _META = ExperimentalMetadata(
     image_id="SW620_Sort01_low_48h_Field003",

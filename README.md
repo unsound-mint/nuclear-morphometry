@@ -1,11 +1,11 @@
-# dayana-nuclei
+# nuclear-morphometry
 
 GPU-first, reproducible pipeline for 2D and true-3D analysis of colorectal-cancer nuclei
 from confocal microscopy, supporting an undergraduate BIOL 490 Honors Thesis.
 
 ## What this does
 
-Given Zeiss CZI or TIFF microscopy files and an experimental manifest, `dayana-nuclei`:
+Given Zeiss CZI or TIFF microscopy files and an experimental manifest, `nuclear-morphometry`:
 
 1. Reads images with BioIO, preserving physical pixel/voxel spacing and never fabricating
    it when the source file doesn't declare it.
@@ -15,7 +15,7 @@ Given Zeiss CZI or TIFF microscopy files and an experimental manifest, `dayana-n
    merges, splits, and other failures, without excluding biologically extreme shapes.
 5. Writes tidy per-nucleus and per-field Parquet tables, plus full run provenance.
 
-See `docs/Dayana_Nuclei_Complete_Build_Spec.md` for the complete specification and `AGENTS.md`
+See `docs/Nuclear_Morphometry_Complete_Build_Spec.md` for the complete specification and `AGENTS.md`
 for engineering rules and what's implemented vs. still pending.
 
 ## Scientific scope and non-goals
@@ -51,7 +51,7 @@ uv sync --extra gpu --extra gui --extra dev   # everything
 A CUDA-capable GPU and driver are required for production segmentation. Check with:
 
 ```bash
-uv run dayana-nuclei doctor
+uv run nuclear-morphometry doctor
 ```
 
 This reports Python/package versions, CUDA availability and GPU name/VRAM, Cellpose
@@ -63,8 +63,8 @@ missing) — a CUDA-less machine is a valid `doctor` pass for development/testin
 ## Inspecting a source file
 
 ```bash
-uv run dayana-nuclei inspect /path/to/field.czi
-uv run dayana-nuclei inspect /path/to/field.czi --scene 1 --json
+uv run nuclear-morphometry inspect /path/to/field.czi
+uv run nuclear-morphometry inspect /path/to/field.czi --scene 1 --json
 ```
 
 Prints format, scenes, dimensions, axis order, channel names, dtype, and X/Y/Z physical
@@ -77,8 +77,8 @@ Analysis never parses filenames at run time — it always reads a long-form mani
 row per image channel). Build a draft from the thesis filename convention and validate it:
 
 ```bash
-uv run dayana-nuclei manifest build /data/dayana --output manifest.csv
-uv run dayana-nuclei manifest validate manifest.csv
+uv run nuclear-morphometry manifest build /data/samples --output manifest.csv
+uv run nuclear-morphometry manifest validate manifest.csv
 ```
 
 Always run `validate` before using a manifest for analysis, whether or not it came from
@@ -100,10 +100,10 @@ and manifest calibration must agree when both exist; a conflict fails loudly. Se
 # 2D preliminary-replication starting point: explicitly max-projects Z-stacks and
 # enables the predefined texture/radial feature family. Validate projection and
 # texture scales against the legacy CellProfiler run before thesis use.
-uv run dayana-nuclei run configs/example_2d.toml
+uv run nuclear-morphometry run configs/example_2d.toml
 
 # True 3D (requires real, non-fabricated X/Y/Z physical spacing; never assumes 1/1/1):
-uv run dayana-nuclei run configs/example_3d.toml
+uv run nuclear-morphometry run configs/example_3d.toml
 ```
 
 `segmentation.model = "auto"` fails loudly with instructions to run segmentation
@@ -115,7 +115,7 @@ report.
 ## Resuming an interrupted run
 
 ```bash
-uv run dayana-nuclei resume results/<run-id>
+uv run nuclear-morphometry resume results/<run-id>
 ```
 
 Skips fields already marked `complete`; retries `pending`, `failed`, and `running`
@@ -150,7 +150,7 @@ fail badly on dense or dim ones — the reference set must contain the hard case
 Single pair:
 
 ```bash
-uv run dayana-nuclei validate-segmentation \
+uv run nuclear-morphometry validate-segmentation \
     --prediction results/<run-id>/masks/<image_id>_labels.tif \
     --reference path/to/manually_corrected_labels.tif \
     --output validation_report.json
@@ -159,7 +159,7 @@ uv run dayana-nuclei validate-segmentation \
 Batch, via a CSV with columns `case_id, prediction_path, reference_path`:
 
 ```bash
-uv run dayana-nuclei validate-segmentation --manifest validation_cases.csv --output report.json
+uv run nuclear-morphometry validate-segmentation --manifest validation_cases.csv --output report.json
 ```
 
 Metrics computed (spec 14.2): predicted/reference object counts, one-to-one IoU-matrix +
@@ -190,7 +190,7 @@ computed into every run's `fields.parquet` (spec section 21).
 A static QC report (spec section 24) is generated with:
 
 ```bash
-uv run dayana-nuclei qc-report results/<run-id> [--seed 0] [--n-overlays 6]
+uv run nuclear-morphometry qc-report results/<run-id> [--seed 0] [--n-overlays 6]
 ```
 
 This writes a self-contained `results/<run-id>/qc/report.html` plus PNG overlays under
@@ -205,7 +205,7 @@ true` was set for the run.
 
 ```bash
 uv sync --extra gui   # if not already installed
-uv run dayana-nuclei qc results/<run-id> [--image-id SW620_Sort01_low_48h_Field001]
+uv run nuclear-morphometry qc results/<run-id> [--image-id SW620_Sort01_low_48h_Field001]
 ```
 
 Requires `output.save_masks = true` for the run. Opens napari with the raw Hoechst image,
@@ -227,7 +227,7 @@ shown to napari is a plain in-memory copy and is not editable from the viewer.
 ## Performance benchmarking
 
 ```bash
-uv run dayana-nuclei benchmark configs/example_3d.toml [--limit 5] [--output path.json]
+uv run nuclear-morphometry benchmark configs/example_3d.toml [--limit 5] [--output path.json]
 ```
 
 Runs the real pipeline (same code path as `run`, model loaded once) against the config's
@@ -245,7 +245,7 @@ changes (spec section 32).
 ## Legacy CellProfiler measurement comparison
 
 ```bash
-uv run dayana-nuclei compare-measurements \
+uv run nuclear-morphometry compare-measurements \
     --ours results/<run-id>/nuclei.parquet \
     --reference legacy_cellprofiler.csv \
     --mapping configs/cellprofiler_mapping.toml \
@@ -270,9 +270,9 @@ once you know it (spec 16.1).
 ## Exporting tables
 
 ```bash
-uv run dayana-nuclei prepare-analysis results/<run-id>   # folds in manual QC; adds include_default
-uv run dayana-nuclei export-csv results/<run-id>          # re-export nuclei.csv
-uv run dayana-nuclei finalize-run results/<run-id> --hash-inputs   # archival provenance
+uv run nuclear-morphometry prepare-analysis results/<run-id>   # folds in manual QC; adds include_default
+uv run nuclear-morphometry export-csv results/<run-id>          # re-export nuclei.csv
+uv run nuclear-morphometry finalize-run results/<run-id> --hash-inputs   # archival provenance
 ```
 
 ## Output layout

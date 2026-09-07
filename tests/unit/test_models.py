@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from dayana_nuclei.models import ImageVolume, PhysicalSpacing
+from nuclear_morphometry.models import ImageVolume, PhysicalSpacing
 
 
 def test_physical_spacing_require_z_raises_actionable_error() -> None:

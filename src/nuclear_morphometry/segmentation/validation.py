@@ -293,7 +293,7 @@ def validate_segmentation_from_files(
 ) -> SegmentationValidationReport:
     """Load two label-mask TIFFs (as written by ``io.masks.save_label_mask``,
     or any integer-labeled TIFF) and validate one against the other."""
-    from dayana_nuclei.io.masks import load_label_mask
+    from nuclear_morphometry.io.masks import load_label_mask
 
     prediction, _ = load_label_mask(prediction_path)
     reference, _ = load_label_mask(reference_path)

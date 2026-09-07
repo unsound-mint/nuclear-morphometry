@@ -1,5 +1,5 @@
-from dayana_nuclei.qc.flags import compute_object_qc
-from dayana_nuclei.schema import EXCLUSION_REASON_BORDER
+from nuclear_morphometry.qc.flags import compute_object_qc
+from nuclear_morphometry.schema import EXCLUSION_REASON_BORDER
 
 
 def test_border_object_is_excluded_by_default_with_reason() -> None:

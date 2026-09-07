@@ -3,7 +3,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from dayana_nuclei.qc.annotations import (
+from nuclear_morphometry.qc.annotations import (
     apply_annotations_to_nuclei,
     load_annotations,
     save_annotation,

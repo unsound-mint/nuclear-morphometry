@@ -1,5 +1,5 @@
 [experiment]
-name = "dayana_thesis_3d_example"
+name = "thesis_3d_example"
 manifest = "manifest.csv"
 output_root = "results"
 

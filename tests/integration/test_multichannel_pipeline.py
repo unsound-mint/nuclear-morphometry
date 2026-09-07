@@ -13,9 +13,9 @@ import pytest
 import tifffile
 from skimage.draw import disk
 
-from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.models import ImageVolume, PhysicalSpacing
-from dayana_nuclei.pipeline.analyze import _validate_channel_compatibility, run_pipeline
+from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
+from nuclear_morphometry.models import ImageVolume, PhysicalSpacing
+from nuclear_morphometry.pipeline.analyze import _validate_channel_compatibility, run_pipeline
 
 
 def test_additional_channel_rejects_mismatched_physical_spacing() -> None:
@@ -234,7 +234,7 @@ def test_missing_additional_channel_leaves_columns_null_not_broken(tmp_path: Pat
     )
     run_dir = run_pipeline(config_path)
 
-    from dayana_nuclei.pipeline.run_state import load_run_state
+    from nuclear_morphometry.pipeline.run_state import load_run_state
 
     run_state = load_run_state(run_dir / "run_state.json")
     assert run_state is not None
