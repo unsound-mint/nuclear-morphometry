@@ -420,9 +420,29 @@ def compare_measurements_command(
 
 
 @app.command()
-def qc(run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)]) -> None:
-    """Launch the napari QC viewer for a run (spec section 23)."""
-    _not_yet_implemented("qc", "Planned for the QC phase (spec section 23).")
+def qc(
+    run_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    image_id: Annotated[
+        str | None, typer.Option("--image-id", help="Field to open initially (default: first).")
+    ] = None,
+) -> None:
+    """Launch the interactive napari QC viewer for a run (spec section 23).
+
+    Requires the optional 'gui' dependency group (napari + Qt) -- imported
+    here, not at module load, so every other `dayana-nuclei` command keeps
+    working without it (AGENTS.md: "the computational core must not depend
+    on napari or Qt").
+    """
+    try:
+        from dayana_nuclei.qc.viewer import launch_qc_viewer
+    except ImportError as exc:
+        typer.echo(
+            f"The QC viewer requires the optional 'gui' dependency group (napari + Qt), "
+            f"which is not installed ({exc}).\n\nInstall it with:\n  uv sync --extra gui",
+            err=True,
+        )
+        raise typer.Exit(code=2) from exc
+    launch_qc_viewer(run_dir, image_id=image_id)
 
 
 @app.command("qc-report")

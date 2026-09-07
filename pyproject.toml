@@ -87,4 +87,5 @@ testpaths = ["tests"]
 markers = [
     "gpu: requires a CUDA device",
     "cellpose_model: requires downloaded Cellpose model weights",
+    "gui: requires the optional 'gui' dependency group (napari + Qt); runs headlessly offscreen",
 ]

@@ -155,7 +155,10 @@ class MeasurementsConfig(BaseModel):
             raise ValueError(
                 "measurements.texture_distances_px and "
                 "measurements.texture_distances_um are mutually exclusive; "
-                "configure exactly one texture scale mode."
+                "configure exactly one texture scale mode. "
+                "texture_distances_px defaults to (3, 5, 10, 20) even when unset, so "
+                "enabling texture_distances_um also requires explicitly setting "
+                "texture_distances_px = [] in the same config."
             )
         return self
 

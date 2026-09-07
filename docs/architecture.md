@@ -66,9 +66,15 @@ src/dayana_nuclei/
 │   ├── annotations.py      manual QC tag store keyed by (image_id, object_number),
 │   │                       napari-independent (spec 22.2/23); folds into a
 │   │                       *derived* nuclei table, never mutates nuclei.parquet
-│   └── report.py           generate_qc_report: self-contained HTML + PNG overlays
-│                           under results/<run-id>/qc/ (spec 24); seeded, stratified
-│                           overlay sampling across cell line/condition/SortID
+│   ├── report.py           generate_qc_report: self-contained HTML + PNG overlays
+│   │                       under results/<run-id>/qc/ (spec 24); seeded, stratified
+│   │                       overlay sampling across cell line/condition/SortID
+│   └── viewer.py           build_qc_viewer/launch_qc_viewer: interactive napari
+│                           viewer (spec 23/53.9) -- click-to-select object + key
+│                           measurements, keyboard/dock-widget manual tags, a
+│                           Points-layer annotation overlay that reloads on open;
+│                           the only module allowed to import napari/Qt, imported
+│                           lazily by cli.py's `qc` command
 │
 └── pipeline/
     ├── analyze.py          run_pipeline: manifest -> per-field segment+measure ->
@@ -82,9 +88,6 @@ src/dayana_nuclei/
                              pipeline against a scratch directory, discards
                              masks/tables, keeps only the timing report
 ```
-
-Not yet implemented: `qc/viewer.py` (Phase 7 -- the interactive napari viewer, the intended
-way to actually produce manual annotations).
 
 ## Data flow (2D or 3D, FixtureSegmenter or Cellpose)
 
@@ -177,8 +180,9 @@ depends on, and `pipeline/run_state.py`'s `incomplete_image_ids` for why an inte
   zero objects — see
   `docs/decisions/0004-parquet-as-canonical-table.md` for the concat-corruption bug this
   prevents.
-- The computational core (everything above) has no napari or Qt import; GUI code is
-  confined to `qc/viewer.py` (not yet implemented), per spec section 6.
+- The computational core (everything above) has no napari or Qt import; GUI code is confined
+  to `qc/viewer.py`, per spec section 6 -- `cli.py` imports it lazily inside the `qc` command
+  body so every other command works without the optional `gui` dependency group installed.
 
 ## Segmentation backend selection
 

@@ -50,9 +50,11 @@ Keep separate:
 - QC (`qc/`)
 - pipeline execution (`pipeline/`)
 - export/provenance (`export.py`, `provenance.py`)
-- GUI (`qc/viewer.py`, not yet implemented)
+- GUI (`qc/viewer.py`)
 
-The computational core must not depend on napari or Qt.
+The computational core must not depend on napari or Qt: `cli.py` imports `qc/viewer.py` (and
+therefore napari) lazily, inside the `qc` command body, so every other command works without
+the optional `gui` dependency group installed.
 
 Every per-field nuclei DataFrame must be constructed against
 `schema.NUCLEI_TABLE_SCHEMA` (explicit dtypes, including for zero-row frames) -- see
@@ -73,7 +75,7 @@ run over a single empty field.
 - Cellpose in this environment resolved to 4.2.1.1 (Cellpose-SAM), not the tissue-specific-model
   generation the original spec assumed. See
   `docs/decisions/0001-cellpose-segmentation-backend.md` before touching
-  `segmentation/cellpose_backend.py` (not yet implemented) -- `model_type`/`diam_mean` are dead
+  `segmentation/cellpose_backend.py` -- `model_type`/`diam_mean` are dead
   parameters in this version, and `model = "auto"` has no "nuclei" model to fall back to.
 
 ## Testing
@@ -121,7 +123,11 @@ I/O with physical calibration, mask persistence, the deterministic `FixtureSegme
 Cellpose-SAM backend (`segmentation/cellpose_backend.py`), 2D and 3D morphology, intensity,
 2D texture, border-only QC flags, image-level QC metrics (`qc/image_metrics.py`, spec 21,
 measurement-only), manual QC annotation storage (`qc/annotations.py`, spec 22.2/23 --
-napari-independent JSON store; the interactive viewer itself is not yet implemented),
+napari-independent JSON store) plus the interactive napari QC viewer itself
+(`qc/viewer.py` + `qc` CLI, spec 23/53.9 -- click-to-select object + key measurements, keyboard
+shortcuts and a dock widget for the five manual tags, a Points-layer overlay of existing
+annotations that reloads on open, uneditable Labels/Points layers so nothing on disk is ever
+touched; the only module allowed to import napari/Qt, imported lazily by `cli.py`),
 segmentation validation tooling (`segmentation/validation.py` + `validate-segmentation` CLI,
 spec 14 -- IoU matrix + Hungarian matching, precision/recall/F1 with undefined-not-zero
 semantics when a count is 0, a containment-based (not IoU-based -- see
@@ -160,11 +166,10 @@ still fragment unexplained, but do not resemble real fluorescence signal — see
 before, but `validate-segmentation` against a real reference mask set (spec section 14)
 is still required before trusting a 3D analysis run's object count or masks.
 
-Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for the full phase
-plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
-produce manual annotations). This CLI command currently exits with an explicit "not yet
-implemented" message rather than a bare stub.
-`measurements.texture_distances_um` (physical-scale texture mode, spec 19.4) is now wired
-into the pipeline: `_process_field` converts per-field, names columns by the configured um
-value (not the per-field resolved pixel distance), and requires square X/Y pixels for the
-field being measured. See `docs/decisions/0012-texture-um-distance-column-naming.md`.
+`measurements.texture_distances_um` (physical-scale texture mode, spec 19.4) is wired into the
+pipeline: `_process_field` converts per-field, names columns by the configured um value (not
+the per-field resolved pixel distance), and requires square X/Y pixels for the field being
+measured. See `docs/decisions/0012-texture-um-distance-column-naming.md`.
+
+With this, `Dayana_Nuclei_Complete_Build_Spec.md` section 52's phase plan is fully
+implemented.

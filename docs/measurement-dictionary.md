@@ -6,8 +6,7 @@ definition, source channel, biological rationale, primary/secondary status, and 
 caveats.
 
 Only measurements that are actually implemented and tested are listed here. Do not treat
-this file as a preview of the full spec — see the "Not yet implemented" section at the
-bottom for what `Dayana_Nuclei_Complete_Build_Spec.md` still calls for.
+this file as a preview of the full spec.
 
 ---
 
@@ -320,8 +319,9 @@ see `docs/decisions/0003-physical-units-for-3d.md`.
   `EXCLUSION_REASON_MANUAL_*` reason (or no exclusion, for `good`) only when folded into a
   nuclei table via `apply_annotations_to_nuclei` — never written back into
   `nuclei.parquet`.
-- This module is the storage/merge layer only. The interactive `dayana-nuclei qc` viewer
-  (napari, spec section 23) that produces these annotations is not yet implemented.
+- This module is the storage/merge layer; `qc/viewer.py`'s interactive `dayana-nuclei qc`
+  (napari) is the intended way to actually produce these annotations by clicking through
+  fields.
 
 ## Image-level QC (`qc/image_metrics.py`, spec section 21; columns live on `fields.parquet`)
 
@@ -456,11 +456,5 @@ unclear legacy method. Column names are dynamic on the run's configured `radial_
 
 ---
 
-## Not yet implemented
-
-The following spec-required measurement has no code yet and is not documented above
-because there is nothing to audit: the interactive napari QC viewer that produces manual
-annotations (spec section 23). This section will be replaced by a real entry once it is
-implemented and tested, per this
-project's definition of done (`AGENTS.md`): documentation must describe actual code, not
-planned code.
+All spec-required measurements and tooling named in this dictionary are implemented; there
+is no outstanding "not yet implemented" entry.

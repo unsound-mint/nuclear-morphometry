@@ -41,7 +41,7 @@ automatic biological conclusions, no qPCR/AFM analysis).
 ```bash
 uv sync                                   # core: I/O, config, CLI, 2D/3D measurements
 uv sync --extra gpu                       # + torch, cellpose (CUDA segmentation)
-uv sync --extra gui                       # + napari (QC viewer, not yet implemented)
+uv sync --extra gui                       # + napari (interactive QC viewer)
 uv sync --extra dev                       # + pytest, ruff, pyright
 uv sync --extra gpu --extra gui --extra dev   # everything
 ```
@@ -194,10 +194,28 @@ Overlay fields are picked by a seeded, stratified sample across cell line × con
 SortID (not just the first or easiest fields), and only rendered when `output.save_masks =
 true` was set for the run.
 
-Not yet implemented in this build: the interactive napari viewer (`qc`), which is the
-intended way to actually produce manual annotations by clicking through fields — it
-currently exits with an explicit "not yet implemented" message naming the spec section that
-will implement it, rather than doing nothing silently.
+### Interactive viewer (spec section 23)
+
+```bash
+uv sync --extra gui   # if not already installed
+uv run dayana-nuclei qc results/<run-id> [--image-id SW620_Sort01_low_48h_Field001]
+```
+
+Requires `output.save_masks = true` for the run. Opens napari with the raw Hoechst image,
+the segmentation labels, and any configured additional channels (toggle visibility per
+layer) for one field at a time (switch fields from the dock widget's dropdown). Z scrolling
+and 2D/3D label rendering for 3D stacks are napari's own built-in controls — nothing
+field-specific is needed to enable them.
+
+Click a nucleus in the labels layer to select it; its object number and key measurements
+(area/perimeter/circularity/eccentricity for 2D, volume/surface area/sphericity for 3D, plus
+intensity where measured) appear in the dock widget. Tag it `good`/`debris`/`merge`/`split`/
+`other` either via the dock's buttons or the `g`/`d`/`m`/`s`/`o` keyboard shortcuts.
+Annotations are written to `results/<run-id>/qc/annotations.json`, keyed by
+`(image_id, object_number)`, and already-tagged objects are shown as a colored points overlay
+that reloads automatically the next time the viewer opens — reopening never loses prior
+review. Neither the raw source file nor the saved mask is ever modified: the labels layer
+shown to napari is a plain in-memory copy and is not editable from the viewer.
 
 ## Performance benchmarking
 
