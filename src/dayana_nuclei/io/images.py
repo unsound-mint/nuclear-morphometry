@@ -6,6 +6,7 @@ semantics). This module must not import napari or Qt (spec section 6).
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +17,37 @@ from dayana_nuclei.models import ImageSource, ImageVolume, PhysicalSpacing
 
 Mode = Literal["2d", "3d"]
 Projection = Literal["none", "max", "mean", "specific_plane"]
+
+
+def _resolve_spacing(
+    source: ImageSource,
+    embedded: tuple[float | None, float | None, float | None],
+) -> tuple[float | None, float | None, float | None]:
+    override = source.spacing_override
+    if override is None:
+        return embedded
+
+    override_values = (override.x_um, override.y_um, override.z_um)
+    names = ("x_um", "y_um", "z_um")
+    conflicts = [
+        f"{name}: embedded={found}, manifest={supplied}"
+        for name, found, supplied in zip(names, embedded, override_values, strict=True)
+        if found is not None
+        and supplied is not None
+        and not math.isclose(found, supplied, rel_tol=1e-6, abs_tol=1e-9)
+    ]
+    if conflicts:
+        raise ValueError(
+            f"Calibrated manifest spacing for {source.metadata.image_id!r}, channel "
+            f"{source.channel!r} conflicts with embedded metadata "
+            f"({'; '.join(conflicts)}). Correct the manifest or source metadata; the "
+            f"pipeline will not choose one silently."
+        )
+    resolved = tuple(
+        found if found is not None else supplied
+        for found, supplied in zip(embedded, override_values, strict=True)
+    )
+    return resolved[0], resolved[1], resolved[2]
 
 
 def _resolve_channel_index(img: BioImage, channel: str, path: Path) -> int:
@@ -70,6 +102,7 @@ def load_channel_volume(
 
     x_um, y_um, z_um, spacing_warnings = read_physical_spacing(img, source.path)
     del spacing_warnings  # load_channel_volume raises on missing spacing rather than warning
+    x_um, y_um, z_um = _resolve_spacing(source, (x_um, y_um, z_um))
 
     n_z = img.dims.Z
 

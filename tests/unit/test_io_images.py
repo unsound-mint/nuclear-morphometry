@@ -5,7 +5,7 @@ import pytest
 import tifffile
 
 from dayana_nuclei.io.images import load_channel_volume
-from dayana_nuclei.models import ExperimentalMetadata, ImageSource
+from dayana_nuclei.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
 
 _META = ExperimentalMetadata(
     image_id="SW620_Sort01_low_48h_Field003",
@@ -19,9 +19,19 @@ _META = ExperimentalMetadata(
 
 
 def _source(
-    path: Path, *, channel: str = "Channel:0:0", scene: str | int | None = None
+    path: Path,
+    *,
+    channel: str = "Channel:0:0",
+    scene: str | int | None = None,
+    spacing_override: PhysicalSpacing | None = None,
 ) -> ImageSource:
-    return ImageSource(path=path, scene=scene, channel=channel, metadata=_META)
+    return ImageSource(
+        path=path,
+        scene=scene,
+        channel=channel,
+        metadata=_META,
+        spacing_override=spacing_override,
+    )
 
 
 def test_load_2d_calibrated(tmp_path: Path) -> None:
@@ -75,6 +85,38 @@ def test_load_3d_missing_z_spacing_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="3D analysis requires physical X/Y/Z spacing"):
         load_channel_volume(_source(path), mode="3d")
+
+
+def test_load_3d_accepts_explicitly_calibrated_manifest_spacing(tmp_path: Path) -> None:
+    path = tmp_path / "uncalibrated_stack.tif"
+    tifffile.imwrite(path, np.zeros((4, 8, 10), dtype=np.uint16), metadata={"axes": "ZYX"})
+    calibrated = PhysicalSpacing(x_um=0.2, y_um=0.2, z_um=0.5)
+
+    volume = load_channel_volume(
+        _source(path, spacing_override=calibrated),
+        mode="3d",
+    )
+
+    assert volume.spacing == calibrated
+
+
+def test_load_rejects_manifest_spacing_that_conflicts_with_embedded_metadata(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "calibrated.tif"
+    tifffile.imwrite(
+        path,
+        np.zeros((8, 10), dtype=np.uint16),
+        resolution=(100_000.0, 100_000.0),
+        resolutionunit="CENTIMETER",
+        metadata={"axes": "YX"},
+    )
+
+    with pytest.raises(ValueError, match="conflicts with embedded metadata"):
+        load_channel_volume(
+            _source(path, spacing_override=PhysicalSpacing(x_um=0.2, y_um=0.1)),
+            mode="2d",
+        )
 
 
 def test_load_2d_multi_z_no_projection_raises(tmp_path: Path) -> None:

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import polars as pl
 
-from dayana_nuclei.models import ExperimentalMetadata, ImageSource
+from dayana_nuclei.models import ExperimentalMetadata, ImageSource, PhysicalSpacing
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,12 @@ MANIFEST_COLUMNS: tuple[str, ...] = (
     "path",
     "scene",
     "acquisition_batch",
+)
+
+SPACING_OVERRIDE_COLUMNS: tuple[str, ...] = (
+    "spacing_x_um",
+    "spacing_y_um",
+    "spacing_z_um",
 )
 
 _IMAGE_EXTENSIONS: frozenset[str] = frozenset({".czi", ".tif", ".tiff"})
@@ -58,6 +64,9 @@ def manifest_row(
     path: Path,
     scene: str | int | None = None,
     acquisition_batch: str | None = None,
+    spacing_x_um: float | None = None,
+    spacing_y_um: float | None = None,
+    spacing_z_um: float | None = None,
 ) -> dict[str, object]:
     """Build one manifest row dict.
 
@@ -77,6 +86,9 @@ def manifest_row(
         "path": str(path),
         "scene": str(scene) if scene is not None else None,
         "acquisition_batch": acquisition_batch,
+        "spacing_x_um": spacing_x_um,
+        "spacing_y_um": spacing_y_um,
+        "spacing_z_um": spacing_z_um,
     }
 
 
@@ -92,6 +104,9 @@ def _empty_manifest() -> pl.DataFrame:
         "path": pl.Utf8,
         "scene": pl.Utf8,
         "acquisition_batch": pl.Utf8,
+        "spacing_x_um": pl.Float64,
+        "spacing_y_um": pl.Float64,
+        "spacing_z_um": pl.Float64,
     }
     return pl.DataFrame(schema=schema)
 
@@ -200,6 +215,34 @@ def validate_manifest(df: pl.DataFrame) -> ManifestValidationResult:
                 f"{missing_paths[:5]}{'...' if len(missing_paths) > 5 else ''}"
             )
 
+    present_spacing_columns = [column for column in SPACING_OVERRIDE_COLUMNS if column in df]
+    if present_spacing_columns:
+        for row_index, row in enumerate(df.iter_rows(named=True), start=1):
+            values = {column: row.get(column) for column in SPACING_OVERRIDE_COLUMNS}
+            if not any(value is not None for value in values.values()):
+                continue
+            if values["spacing_x_um"] is None or values["spacing_y_um"] is None:
+                errors.append(
+                    f"Manifest row {row_index}: spacing_x_um and spacing_y_um must both be "
+                    f"provided when any calibrated spacing override is used."
+                )
+                continue
+            for column, value in values.items():
+                if value is None:
+                    continue
+                try:
+                    numeric = float(value)
+                except (TypeError, ValueError):
+                    errors.append(
+                        f"Manifest row {row_index}: {column} must be a positive number in um "
+                        f"(got {value!r})."
+                    )
+                    continue
+                if numeric <= 0:
+                    errors.append(
+                        f"Manifest row {row_index}: {column} must be > 0 um (got {numeric})."
+                    )
+
     scene_consistency = (
         df.group_by(["image_id", "path"])
         .agg(pl.col("scene").n_unique().alias("_n_scenes"))
@@ -219,10 +262,16 @@ def validate_manifest(df: pl.DataFrame) -> ManifestValidationResult:
 
 
 def read_manifest_csv(path: Path) -> pl.DataFrame:
-    return pl.read_csv(
+    df = pl.read_csv(
         path,
         schema_overrides={"scene": pl.Utf8, "acquisition_batch": pl.Utf8, "field": pl.Utf8},
     )
+    casts = [
+        pl.col(column).cast(pl.Float64, strict=False)
+        for column in SPACING_OVERRIDE_COLUMNS
+        if column in df.columns
+    ]
+    return df.with_columns(casts) if casts else df
 
 
 def write_manifest_csv(df: pl.DataFrame, path: Path) -> None:
@@ -266,11 +315,23 @@ def resolve_image_sources(
         if scene_raw is not None and scene_raw.lstrip("-").isdigit():
             scene = int(scene_raw)
 
+        spacing_override = None
+        spacing_x_um = row.get("spacing_x_um")
+        spacing_y_um = row.get("spacing_y_um")
+        spacing_z_um = row.get("spacing_z_um")
+        if spacing_x_um is not None and spacing_y_um is not None:
+            spacing_override = PhysicalSpacing(
+                x_um=float(spacing_x_um),
+                y_um=float(spacing_y_um),
+                z_um=float(spacing_z_um) if spacing_z_um is not None else None,
+            )
+
         sources.setdefault(image_id, {})[channel] = ImageSource(
             path=Path(row["path"]),
             scene=scene,
             channel=channel,
             metadata=metadata,
+            spacing_override=spacing_override,
         )
 
     missing_hoechst = [

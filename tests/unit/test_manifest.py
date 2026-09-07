@@ -6,6 +6,7 @@ import pytest
 from dayana_nuclei.io.manifest import (
     build_manifest,
     read_manifest_csv,
+    resolve_image_sources,
     validate_manifest,
     write_manifest_csv,
 )
@@ -58,6 +59,9 @@ def test_build_manifest_empty_directory_returns_empty_frame(tmp_path: Path) -> N
         "path",
         "scene",
         "acquisition_batch",
+        "spacing_x_um",
+        "spacing_y_um",
+        "spacing_z_um",
     ]
 
 
@@ -128,3 +132,31 @@ def test_manifest_csv_round_trip(tmp_path: Path) -> None:
     reloaded = read_manifest_csv(csv_path)
 
     assert reloaded.equals(df)
+
+
+def test_validate_manifest_rejects_incomplete_spacing_override(tmp_path: Path) -> None:
+    df = _base_manifest(tmp_path).with_columns(pl.lit(0.2).alias("spacing_x_um"))
+
+    result = validate_manifest(df)
+
+    assert not result.is_valid
+    assert any("spacing_x_um and spacing_y_um" in error for error in result.errors)
+
+
+def test_validate_manifest_accepts_positive_calibrated_spacing_override(tmp_path: Path) -> None:
+    df = _base_manifest(tmp_path).with_columns(
+        pl.lit(0.2).alias("spacing_x_um"),
+        pl.lit(0.2).alias("spacing_y_um"),
+        pl.lit(0.5).alias("spacing_z_um"),
+    )
+
+    result = validate_manifest(df)
+
+    assert result.is_valid, result.errors
+
+    sources = resolve_image_sources(df, hoechst_channel="Hoechst")
+    source = sources["img1"]["Hoechst"]
+    assert source.spacing_override is not None
+    assert source.spacing_override.x_um == pytest.approx(0.2)
+    assert source.spacing_override.y_um == pytest.approx(0.2)
+    assert source.spacing_override.z_um == pytest.approx(0.5)

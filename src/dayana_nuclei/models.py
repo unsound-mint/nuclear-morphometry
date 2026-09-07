@@ -81,6 +81,10 @@ class ImageSource(BaseModel):
     scene: str | int | None
     channel: str
     metadata: ExperimentalMetadata
+    # Optional values transcribed from the authoritative acquisition record
+    # when an exported TIFF has lost calibration metadata. They are never
+    # inferred from image dimensions or filenames.
+    spacing_override: PhysicalSpacing | None = None
 
 
 class ImageVolume(BaseModel):

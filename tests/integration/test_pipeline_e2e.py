@@ -429,6 +429,7 @@ def test_texture_distances_um_rejects_anisotropic_field(tmp_path: Path) -> None:
     run_dir = run_pipeline(config_path)
 
     run_state = load_run_state(run_dir / "run_state.json")
+    assert run_state is not None
     field_b = run_state.fields["SW620_Sort01_low_48h_Field002"]
     assert field_b.status == "failed"
     assert field_b.error is not None and "square X/Y pixels" in field_b.error

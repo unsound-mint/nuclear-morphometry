@@ -305,7 +305,9 @@ see `docs/decisions/0003-physical-units-for-3d.md`.
   though the corresponding `qc_manual_*` boolean is also set from the tag.
 
 ### `include_default` (analysis-ready table only, `prepare-analysis`)
-- Definition: `not qc_excluded_default`, computed once by `schema.include_default_expr`. See
+- Definition: after folding the current manual QC annotations into an in-memory derived
+  copy, `not qc_excluded_default`, computed once by `schema.include_default_expr`. The raw
+  `nuclei.parquet` remains unchanged. See
   `docs/decisions/0005-include-default-semantics.md` for why this is derived rather than
   stored redundantly on the raw table.
 

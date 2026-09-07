@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import secrets
 import time
 from collections.abc import Iterator
@@ -44,7 +45,7 @@ from dayana_nuclei.measurements.texture import (
     measure_texture_2d,
     um_distances_to_pixels,
 )
-from dayana_nuclei.models import ImageSource
+from dayana_nuclei.models import ImageSource, ImageVolume
 from dayana_nuclei.pipeline.run_state import (
     FieldState,
     incomplete_image_ids,
@@ -101,6 +102,46 @@ def texture_distance_labels_um(config: Config) -> tuple[str, ...]:
     ``pipeline.benchmark``) so both agree with what ``_process_field``
     actually names its columns -- see docs/decisions/0012."""
     return tuple(format_um_distance_label(d) for d in config.measurements.texture_distances_um)
+
+
+def _validate_channel_compatibility(
+    *,
+    image_id: str,
+    channel: str,
+    hoechst: ImageVolume,
+    additional: ImageVolume,
+) -> None:
+    """Reject additional channels that cannot reuse the Hoechst mask safely."""
+    if additional.axes != hoechst.axes or additional.data.shape != hoechst.data.shape:
+        raise ValueError(
+            f"Additional channel {channel!r} for {image_id!r} has axes/shape "
+            f"{additional.axes}/{additional.data.shape}, which does not match the "
+            f"Hoechst-derived segmentation {hoechst.axes}/{hoechst.data.shape}. The "
+            f"nuclear mask cannot be reused for a differently shaped channel (spec 46)."
+        )
+
+    spacing_pairs = (
+        ("x_um", hoechst.spacing.x_um, additional.spacing.x_um),
+        ("y_um", hoechst.spacing.y_um, additional.spacing.y_um),
+        ("z_um", hoechst.spacing.z_um, additional.spacing.z_um),
+    )
+    mismatches = [
+        f"{name}: Hoechst={expected}, {channel}={actual}"
+        for name, expected, actual in spacing_pairs
+        if (expected is None) != (actual is None)
+        or (
+            expected is not None
+            and actual is not None
+            and not math.isclose(expected, actual, rel_tol=1e-6, abs_tol=1e-9)
+        )
+    ]
+    if mismatches:
+        raise ValueError(
+            f"Additional channel {channel!r} for {image_id!r} has physical spacing "
+            f"inconsistent with Hoechst ({'; '.join(mismatches)}). Refuse to reuse the "
+            f"Hoechst mask with different calibration; verify acquisition metadata or "
+            f"perform documented image registration outside v1 (spec 46)."
+        )
 
 
 @contextmanager
@@ -264,13 +305,12 @@ def _process_field(
                 projection=config.analysis.projection,
                 specific_plane=config.analysis.specific_plane,
             )
-            if channel_volume.data.shape != result.labels.shape:
-                raise ValueError(
-                    f"Additional channel {entry.channel!r} for {image_id!r} has shape "
-                    f"{channel_volume.data.shape}, which does not match the Hoechst-"
-                    f"derived segmentation shape {result.labels.shape}. The nuclear mask "
-                    f"cannot be reused for a differently-shaped channel (spec 25)."
-                )
+            _validate_channel_compatibility(
+                image_id=image_id,
+                channel=entry.channel,
+                hoechst=volume,
+                additional=channel_volume,
+            )
             if entry.kind == "nuclear":
                 channel_results: list[Any] = measure_intensity(result.labels, channel_volume.data)
             elif entry.kind == "lamin_shell_core":

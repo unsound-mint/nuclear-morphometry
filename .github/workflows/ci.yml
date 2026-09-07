@@ -19,14 +19,10 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      # `gpu` extra (torch/cellpose) is installed on CPU-only runners because
-      # segmentation/cellpose_backend.py currently imports torch at module level,
-      # so it (and its unit tests, which exercise fail-loud boundaries via mocks,
-      # never real GPU inference) must be importable for collection/pyright to
-      # succeed at all. `gui` (napari/PyQt6) is skipped -- nothing depends on it
-      # yet (the QC viewer is not implemented). Real GPU inference is covered by
-      # tests/integration/test_cellpose_gpu.py, which self-skips without CUDA and
-      # is never required to pass here (spec section 38).
+      # `gpu` is installed on the CPU runner because the backend adapter and its
+      # mocked boundary tests import torch/cellpose. Real CUDA inference remains
+      # a separately marked hardware validation. The optional napari viewer has
+      # its own job below so core CI does not acquire a Qt dependency.
       - name: Sync dependencies
         run: uv sync --extra dev --extra gpu
 
@@ -40,4 +36,25 @@ jobs:
         run: uv run pyright
 
       - name: Unit and CPU integration tests
-        run: uv run pytest tests/unit tests/integration -q -m "not gpu and not cellpose_model"
+        run: >-
+          uv run pytest tests/unit tests/integration -q
+          -m "not gpu and not cellpose_model and not gui"
+
+  gui-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync GUI test dependencies
+        run: uv sync --extra dev --extra gui
+
+      - name: Napari QC viewer integration tests
+        run: xvfb-run -a uv run pytest tests/integration/test_qc_viewer.py -q

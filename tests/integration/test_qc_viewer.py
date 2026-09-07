@@ -18,11 +18,13 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import polars as pl
 import pytest
 import tifffile
+from napari.layers import Points
 from skimage.draw import disk
 
 pytest.importorskip("napari")
@@ -207,7 +209,7 @@ def test_reopening_viewer_reloads_existing_annotations(tmp_path: Path) -> None:
 
     second = build_qc_viewer(run_dir, image_id=image_id)
     try:
-        points_layer = second.viewer.layers["qc annotations"]
+        points_layer = cast(Points, second.viewer.layers["qc annotations"])
         assert points_layer.data.shape[0] == 1
         assert list(points_layer.properties["tag"]) == ["merge"]
         # Confirms viewer.bind_key is instance-scoped (not written onto a
@@ -344,7 +346,7 @@ def test_build_qc_viewer_and_tagging_work_for_a_3d_field(tmp_path: Path) -> None
         annotations = load_annotations(run_dir)
         assert annotations[(qc_viewer.image_id, object_number)].tag == "split"
 
-        points_layer = qc_viewer.viewer.layers["qc annotations"]
+        points_layer = cast(Points, qc_viewer.viewer.layers["qc annotations"])
         assert points_layer.data.shape == (1, 3)  # (z, row, col)
         assert points_layer.size.min() >= 2  # not collapsed by the Z depth
     finally:

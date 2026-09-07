@@ -1,3 +1,5 @@
+from typing import cast
+
 import numpy as np
 import pytest
 from skimage.draw import disk
@@ -43,8 +45,11 @@ def test_enrichment_ratio_when_far_is_nonzero() -> None:
     )
 
     r = results[0]
+    assert r.near_ring_mean_intensity is not None
+    assert r.far_ring_mean_intensity is not None
+    assert r.perinuclear_enrichment_ratio is not None
     assert r.perinuclear_enrichment_ratio == pytest.approx(
-        r.near_ring_mean_intensity / r.far_ring_mean_intensity  # type: ignore[operator]
+        r.near_ring_mean_intensity / r.far_ring_mean_intensity
     )
     assert r.perinuclear_enrichment_ratio > 1.0
 
@@ -70,7 +75,10 @@ def test_overlapping_perinuclear_regions_do_not_double_count() -> None:
     from scipy.ndimage import distance_transform_edt
 
     background = labels == 0
-    distance, nearest_index = distance_transform_edt(background, return_indices=True)
+    distance, nearest_index = cast(
+        tuple[np.ndarray, np.ndarray],
+        distance_transform_edt(background, return_indices=True),
+    )
     nearest_label = labels[tuple(nearest_index)]
     near1 = background & (nearest_label == 1) & (distance >= 0.0) & (distance < 20.0)
     near2 = background & (nearest_label == 2) & (distance >= 0.0) & (distance < 20.0)

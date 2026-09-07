@@ -9,6 +9,7 @@ from dayana_nuclei.export import (
     prepare_analysis,
     write_partial_table,
 )
+from dayana_nuclei.qc.annotations import save_annotation
 from dayana_nuclei.schema import compute_include_default, include_default_expr
 
 
@@ -68,3 +69,33 @@ def test_prepare_analysis_adds_include_default_without_dropping_rows(tmp_path: P
     out = pl.read_parquet(out_path)
     assert out.height == 2
     assert out["include_default"].to_list() == [False, True]
+
+
+def test_prepare_analysis_applies_manual_qc_without_mutating_raw_table(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    raw = pl.DataFrame(
+        {
+            "image_id": ["a", "a"],
+            "object_number": [1, 2],
+            "qc_manual_debris": [False, False],
+            "qc_manual_merge": [False, False],
+            "qc_manual_split": [False, False],
+            "qc_manual_other": [False, False],
+            "qc_excluded_default": [False, False],
+            "qc_exclusion_reason": [None, None],
+        },
+        schema_overrides={"qc_exclusion_reason": pl.Utf8},
+    )
+    raw.write_parquet(run_dir / "nuclei.parquet")
+    save_annotation(run_dir, image_id="a", object_number=2, tag="merge")
+
+    out = pl.read_parquet(prepare_analysis(run_dir))
+
+    raw_after = pl.read_parquet(run_dir / "nuclei.parquet")
+    assert raw_after.equals(raw)
+    annotated = out.filter(pl.col("object_number") == 2).row(0, named=True)
+    assert annotated["qc_manual_merge"] is True
+    assert annotated["qc_exclusion_reason"] == "manual_merge"
+    assert annotated["qc_excluded_default"] is True
+    assert annotated["include_default"] is False

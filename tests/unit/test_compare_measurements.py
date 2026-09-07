@@ -288,6 +288,7 @@ def test_nan_and_inf_values_are_excluded_not_corrupting_statistics() -> None:
     col = report.columns[0]
     assert col.n_both_finite == 1
     assert col.mean_absolute_difference == pytest.approx(0.0)
+    assert col.mean_absolute_difference is not None
     assert math.isfinite(col.mean_absolute_difference)
 
 

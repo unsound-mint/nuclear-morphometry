@@ -5,7 +5,10 @@ output_root = "results"
 
 [analysis]
 mode = "2d"
-projection = "none"
+# The preliminary CellProfiler analysis was 2D. For confocal Z-stacks this
+# projection must be explicit; change it only as part of the documented
+# legacy-parity protocol.
+projection = "max"
 
 [input]
 hoechst_channel = "Hoechst"
@@ -25,8 +28,14 @@ batch_size = 0
 [measurements]
 morphology = true
 intensity = true
-texture_2d = false
-radial_distribution_2d = false
+# Preserve the predefined preliminary Hoechst feature family. Pixel distances
+# 3/5/10/20 and five radial bins are legacy starting points, not yet accepted
+# biological scales for the final dataset; validate them against real X/Y
+# calibration and the CellProfiler parity export before thesis use.
+texture_2d = true
+texture_distances_px = [3, 5, 10, 20]
+radial_distribution_2d = true
+radial_bins = 5
 
 [qc]
 flag_border_objects = true

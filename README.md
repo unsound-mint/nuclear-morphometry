@@ -11,11 +11,11 @@ Given Zeiss CZI or TIFF microscopy files and an experimental manifest, `dayana-n
    it when the source file doesn't declare it.
 2. Segments Hoechst-defined nuclei with Cellpose-SAM on the GPU.
 3. Computes a small, predefined set of per-nucleus 2D and calibrated-3D measurements.
-4. Flags technical QC problems (border truncation; more to come) without ever excluding a
-   nucleus for being biologically extreme in shape.
+4. Flags border truncation automatically and supports manual technical QC tags for debris,
+   merges, splits, and other failures, without excluding biologically extreme shapes.
 5. Writes tidy per-nucleus and per-field Parquet tables, plus full run provenance.
 
-See `Dayana_Nuclei_Complete_Build_Spec.md` for the complete specification and `AGENTS.md`
+See `docs/Dayana_Nuclei_Complete_Build_Spec.md` for the complete specification and `AGENTS.md`
 for engineering rules and what's implemented vs. still pending.
 
 ## Scientific scope and non-goals
@@ -30,9 +30,9 @@ automatic biological conclusions, no qPCR/AFM analysis).
   independent replicates** (spec section 1.3). Final biological comparisons require at
   least 3 independent sorts.
 - **Nuclei are never excluded for being eccentric, elongated, low-solidity, or
-  low-circularity** — those may be the phenotype under study. QC only flags technical
-  failures (border truncation so far; debris/merge/split annotation is not yet
-  implemented). See `docs/decisions/0002-no-phenotype-based-qc-filtering.md`.
+  low-circularity** — those may be the phenotype under study. Automatic QC handles border
+  truncation; the viewer records manual debris/merge/split/other technical decisions. See
+  `docs/decisions/0002-no-phenotype-based-qc-filtering.md`.
 - Terminology stays **SYBR-low / SYBR-high**, not mtDNA-low/high, until matched molecular
   validation (mtDNA:nDNA qPCR) supports the stronger claim.
 
@@ -84,6 +84,12 @@ uv run dayana-nuclei manifest validate manifest.csv
 Always run `validate` before using a manifest for analysis, whether or not it came from
 `manifest build`.
 
+If an exported TIFF has lost its physical calibration, add `spacing_x_um`, `spacing_y_um`,
+and (for a Z-stack) `spacing_z_um` columns using values transcribed from the authoritative
+microscope acquisition record. Never estimate these values from image dimensions. Embedded
+and manifest calibration must agree when both exist; a conflict fails loudly. See
+`docs/decisions/0014-explicit-manifest-spacing-overrides.md`.
+
 ## Running an analysis
 
 ```toml
@@ -91,8 +97,9 @@ Always run `validate` before using a manifest for analysis, whether or not it ca
 ```
 
 ```bash
-# 2D (legacy-compatible; fails loudly if the source has multiple Z planes and
-# analysis.projection = "none", rather than silently max-projecting):
+# 2D preliminary-replication starting point: explicitly max-projects Z-stacks and
+# enables the predefined texture/radial feature family. Validate projection and
+# texture scales against the legacy CellProfiler run before thesis use.
 uv run dayana-nuclei run configs/example_2d.toml
 
 # True 3D (requires real, non-fabricated X/Y/Z physical spacing; never assumes 1/1/1):
@@ -263,7 +270,7 @@ once you know it (spec 16.1).
 ## Exporting tables
 
 ```bash
-uv run dayana-nuclei prepare-analysis results/<run-id>   # adds include_default
+uv run dayana-nuclei prepare-analysis results/<run-id>   # folds in manual QC; adds include_default
 uv run dayana-nuclei export-csv results/<run-id>          # re-export nuclei.csv
 uv run dayana-nuclei finalize-run results/<run-id> --hash-inputs   # archival provenance
 ```
@@ -279,12 +286,14 @@ results/<run-id>/
     nuclei.parquet         one row per nucleus (canonical; nuclei.csv for interop)
     run_state.json          per-field pending/running/complete/failed state
     masks/                  one label TIFF per field
-    qc/                     (QC report/overlays, once implemented)
+    qc/                     manual annotations plus generated report/overlays
     logs/
 ```
 
 `nuclei.parquet` contains every successfully measured object, including ones excluded by
 default (e.g. border-truncated), with the exclusion reason preserved — nothing is deleted.
+Manual annotations never mutate that raw table. `prepare-analysis` folds the current manual
+technical tags into a derived `analysis_ready.parquet` and computes `include_default` there.
 
 ## Reproducibility
 
@@ -299,6 +308,8 @@ large files).
 - `docs/architecture.md` — module boundaries and data flow.
 - `docs/measurement-dictionary.md` — every implemented column: units, definition, source
   channel, primary/secondary status, caveats.
+- `docs/real-data-readiness.md` — the acquisition inputs, validation gates, and acceptance
+  artifacts required before a thesis run can be trusted.
 - `docs/decisions/` — ADRs for every scientifically meaningful assumption or third-party
   API adaptation made during implementation.
 - `AGENTS.md` — engineering rules and current implementation status.

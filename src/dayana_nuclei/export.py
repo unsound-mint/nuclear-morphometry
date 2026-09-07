@@ -12,6 +12,7 @@ from pathlib import Path
 
 import polars as pl
 
+from dayana_nuclei.qc.annotations import apply_annotations_to_nuclei
 from dayana_nuclei.schema import include_default_expr
 
 
@@ -70,7 +71,8 @@ def prepare_analysis(run_dir: Path) -> Path:
             f"Run `dayana-nuclei run <config>` (or `resume` an in-progress run) "
             f"to completion before `prepare-analysis`."
         )
-    df = pl.read_parquet(nuclei_path).with_columns(include_default_expr())
+    raw_df = pl.read_parquet(nuclei_path)
+    df = apply_annotations_to_nuclei(raw_df, run_dir).with_columns(include_default_expr())
     out_path = run_dir / "analysis_ready.parquet"
     df.write_parquet(out_path)
     return out_path

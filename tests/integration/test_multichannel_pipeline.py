@@ -14,7 +14,31 @@ import tifffile
 from skimage.draw import disk
 
 from dayana_nuclei.io.manifest import validate_manifest, write_manifest_csv
-from dayana_nuclei.pipeline.analyze import run_pipeline
+from dayana_nuclei.models import ImageVolume, PhysicalSpacing
+from dayana_nuclei.pipeline.analyze import _validate_channel_compatibility, run_pipeline
+
+
+def test_additional_channel_rejects_mismatched_physical_spacing() -> None:
+    hoechst = ImageVolume(
+        data=np.zeros((20, 20), dtype=np.uint16),
+        spacing=PhysicalSpacing(x_um=0.2, y_um=0.2),
+        axes="YX",
+        dtype="uint16",
+    )
+    additional = ImageVolume(
+        data=np.zeros((20, 20), dtype=np.uint16),
+        spacing=PhysicalSpacing(x_um=0.25, y_um=0.2),
+        axes="YX",
+        dtype="uint16",
+    )
+
+    with pytest.raises(ValueError, match="physical spacing"):
+        _validate_channel_compatibility(
+            image_id="field-1",
+            channel="LaminA-C",
+            hoechst=hoechst,
+            additional=additional,
+        )
 
 
 def _build_multichannel_run(tmp_path: Path) -> Path:
