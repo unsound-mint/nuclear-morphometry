@@ -382,7 +382,11 @@ class QCViewer:
                 points,
                 name="qc annotations",
                 face_color=colors,
-                size=max(2, min(self._labels.shape) // 20),
+                # Marker size from the YX (last two) axes only: for a 3D ZYX
+                # stack, the Z depth is often much smaller than the field of
+                # view (e.g. 10 planes), and min(shape) over all axes would
+                # make markers nearly invisible.
+                size=max(2, min(self._labels.shape[-2:]) // 20),
                 properties={"tag": tags},
                 text={"string": "{tag}", "color": "white", "anchor": "upper_left"},
             )

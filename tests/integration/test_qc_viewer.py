@@ -32,6 +32,7 @@ from dayana_nuclei.io.masks import mask_path_for
 from dayana_nuclei.pipeline.analyze import run_pipeline
 from dayana_nuclei.qc.annotations import load_annotations
 from dayana_nuclei.qc.viewer import (
+    _TAG_KEYS,
     _format_measurement_text,
     _selected_object_number,
     build_qc_viewer,
@@ -209,6 +210,13 @@ def test_reopening_viewer_reloads_existing_annotations(tmp_path: Path) -> None:
         points_layer = second.viewer.layers["qc annotations"]
         assert points_layer.data.shape[0] == 1
         assert list(points_layer.properties["tag"]) == ["merge"]
+        # Confirms viewer.bind_key is instance-scoped (not written onto a
+        # shared class-level keymap): binding g/d/m/s/o on this *second*
+        # Viewer instance, after already having bound them on `first`
+        # (closed above), must not raise or silently no-op -- the build
+        # above completing at all is the main evidence; this pins that the
+        # binding is actually present too.
+        assert len(second.viewer.keymap) >= len(_TAG_KEYS)
     finally:
         second.viewer.close()
 
@@ -248,3 +256,96 @@ def test_switch_field_rejects_unknown_image_id(tmp_path: Path) -> None:
 def test_build_qc_viewer_raises_on_missing_run(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         build_qc_viewer(tmp_path / "no_such_run")
+
+
+def _write_synthetic_3d_field(path: Path) -> None:
+    shape = (30, 100, 100)
+    zz, yy, xx = np.indices(shape)
+    center = np.array(shape) / 2
+    sphere = ((zz - center[0]) ** 2 + (yy - center[1]) ** 2 + (xx - center[2]) ** 2) <= 8**2
+    image = np.where(sphere, 5000, 0).astype(np.uint16)
+    tifffile.imwrite(
+        path,
+        image,
+        imagej=True,
+        resolution=(1.0 / 0.2, 1.0 / 0.2),
+        metadata={"axes": "ZYX", "spacing": 0.5, "unit": "um"},
+    )
+
+
+def _build_3d_run(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    field_a = data_dir / "field_a.tif"
+    _write_synthetic_3d_field(field_a)
+
+    manifest_df = pl.DataFrame(
+        {
+            "image_id": ["SW620_Sort01_low_48h_Field001"],
+            "cell_line": ["SW620"],
+            "sort_id": ["Sort01"],
+            "condition": ["low"],
+            "timepoint": ["48h"],
+            "field": ["001"],
+            "channel": ["Channel:0:0"],
+            "path": [str(field_a)],
+            "scene": [None],
+            "acquisition_batch": [None],
+        }
+    )
+    result = validate_manifest(manifest_df)
+    assert result.is_valid, result.errors
+    manifest_path = tmp_path / "manifest.csv"
+    write_manifest_csv(manifest_df, manifest_path)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f"""
+        [experiment]
+        name = "qc_viewer_3d_test"
+        manifest = "{manifest_path.as_posix()}"
+        output_root = "{(tmp_path / "results").as_posix()}"
+
+        [analysis]
+        mode = "3d"
+        projection = "none"
+
+        [input]
+        hoechst_channel = "Channel:0:0"
+
+        [segmentation]
+        backend = "fixture"
+        normalize_for_segmentation = false
+
+        [output]
+        save_masks = true
+        write_csv = false
+        """
+    )
+    return run_pipeline(config_path)
+
+
+def test_build_qc_viewer_and_tagging_work_for_a_3d_field(tmp_path: Path) -> None:
+    """The three 3D-specific code paths in viewer.py (empty-points ndim,
+    add_points(ndim=...), and the annotation-marker size computed from the
+    YX axes only, not Z) are otherwise never exercised by the 2D-only tests
+    above."""
+    run_dir = _build_3d_run(tmp_path)
+    qc_viewer = build_qc_viewer(run_dir)
+    try:
+        assert qc_viewer._labels is not None
+        assert qc_viewer._labels.ndim == 3
+        object_number = int(qc_viewer._labels.max())
+        assert object_number >= 1
+
+        qc_viewer.select_object(object_number)
+        qc_viewer.apply_tag("split")
+
+        annotations = load_annotations(run_dir)
+        assert annotations[(qc_viewer.image_id, object_number)].tag == "split"
+
+        points_layer = qc_viewer.viewer.layers["qc annotations"]
+        assert points_layer.data.shape == (1, 3)  # (z, row, col)
+        assert points_layer.size.min() >= 2  # not collapsed by the Z depth
+    finally:
+        qc_viewer.viewer.close()
