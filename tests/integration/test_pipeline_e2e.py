@@ -294,6 +294,149 @@ def _build_texture_config_and_manifest(tmp_path: Path) -> Path:
     return config_path
 
 
+def _write_field_with_pixel_size(
+    path: Path, *, x_um: float, y_um: float, elongated: bool = False
+) -> None:
+    image = np.zeros((256, 256), dtype=np.uint16)
+    rr, cc = disk((80, 80), 30)
+    image[rr, cc] = 5000
+    if elongated:
+        rr, cc = ellipse(180, 180, 8, 60)
+        image[rr, cc] = 5000
+    else:
+        rr, cc = disk((180, 180), 25)
+        image[rr, cc] = 5000
+    tifffile.imwrite(
+        path,
+        image,
+        # bioio-tifffile resolves physical_pixel_sizes as 1e4 / (resolution
+        # value in pixels/cm) um/pixel for RESUNIT.CENTIMETER -- verified
+        # directly against BioImage.physical_pixel_sizes, since this file's
+        # own pre-existing helper's "0.2" resolution values actually resolve
+        # to 2000 um/px (harmless there: no existing test asserts the literal
+        # calibration value), which this test's assertions do depend on.
+        resolution=(10_000.0 / x_um, 10_000.0 / y_um),
+        resolutionunit="CENTIMETER",
+        metadata={"axes": "YX"},
+    )
+
+
+def _build_texture_um_config_and_manifest(
+    tmp_path: Path, *, second_field_x_um: float = 0.2, second_field_y_um: float = 0.2
+) -> Path:
+    """Two fields with potentially *different* X/Y calibration, both requesting
+    the same measurements.texture_distances_um -- proves docs/decisions/0012's
+    fix: columns are named by the configured um value (identical across
+    fields) even when the two fields resolve that distance to different pixel
+    counts, so finalize_tables' concat across fields does not break."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    field_a = data_dir / "field_a.tif"
+    field_b = data_dir / "field_b.tif"
+    _write_field_with_pixel_size(field_a, x_um=0.2, y_um=0.2)
+    _write_field_with_pixel_size(field_b, x_um=second_field_x_um, y_um=second_field_y_um)
+
+    manifest_df = pl.DataFrame(
+        {
+            "image_id": ["SW620_Sort01_low_48h_Field001", "SW620_Sort01_low_48h_Field002"],
+            "cell_line": ["SW620", "SW620"],
+            "sort_id": ["Sort01", "Sort01"],
+            "condition": ["low", "low"],
+            "timepoint": ["48h", "48h"],
+            "field": ["001", "002"],
+            "channel": ["Channel:0:0", "Channel:0:0"],
+            "path": [str(field_a), str(field_b)],
+            "scene": [None, None],
+            "acquisition_batch": [None, None],
+        }
+    )
+    result = validate_manifest(manifest_df)
+    assert result.is_valid, result.errors
+    manifest_path = tmp_path / "manifest.csv"
+    write_manifest_csv(manifest_df, manifest_path)
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f"""
+        [experiment]
+        name = "e2e_texture_um_test"
+        manifest = "{manifest_path.as_posix()}"
+        output_root = "{(tmp_path / "results").as_posix()}"
+
+        [analysis]
+        mode = "2d"
+        projection = "none"
+
+        [input]
+        hoechst_channel = "Channel:0:0"
+
+        [segmentation]
+        backend = "fixture"
+        normalize_for_segmentation = false
+
+        [measurements]
+        texture_2d = true
+        texture_distances_px = []
+        texture_distances_um = [2.0]
+
+        [output]
+        save_masks = false
+        write_csv = false
+        """
+    )
+    return config_path
+
+
+def test_end_to_end_run_with_texture_distances_um(tmp_path: Path) -> None:
+    """Fields with different X/Y calibration (0.2 vs 0.25 um/px, resolving 2.0
+    um to 10px and 8px respectively) must still produce one shared, correctly
+    named ``*_d2um`` column set (docs/decisions/0012), not diverge and break
+    the run's single nuclei.parquet schema."""
+    config_path = _build_texture_um_config_and_manifest(
+        tmp_path, second_field_x_um=0.25, second_field_y_um=0.25
+    )
+
+    run_dir = run_pipeline(config_path)
+
+    nuclei_df = pl.read_parquet(run_dir / "nuclei.parquet")
+    assert nuclei_df.height >= 2  # at least one object per field
+
+    expected_columns = {
+        f"{prop}_d2um" for prop in ("contrast", "homogeneity", "correlation", "energy", "entropy")
+    }
+    assert expected_columns <= set(nuclei_df.columns)
+    assert "contrast_d10" not in nuclei_df.columns
+    assert "contrast_d8" not in nuclei_df.columns
+
+    for column in expected_columns:
+        assert nuclei_df[column].null_count() == 0, column
+
+    from dayana_nuclei.export import prepare_analysis
+
+    out_path = prepare_analysis(run_dir)
+    assert pl.read_parquet(out_path).height == nuclei_df.height
+
+
+def test_texture_distances_um_rejects_anisotropic_field(tmp_path: Path) -> None:
+    """Per-field failure isolation (spec 33) means an anisotropic-pixel field's
+    ValueError never propagates out of run_pipeline -- it marks that one field
+    failed and continues, so the regression check reads run_state.json rather
+    than expecting run_pipeline itself to raise."""
+    config_path = _build_texture_um_config_and_manifest(
+        tmp_path, second_field_x_um=0.2, second_field_y_um=0.3
+    )
+
+    run_dir = run_pipeline(config_path)
+
+    run_state = load_run_state(run_dir / "run_state.json")
+    field_b = run_state.fields["SW620_Sort01_low_48h_Field002"]
+    assert field_b.status == "failed"
+    assert field_b.error is not None and "square X/Y pixels" in field_b.error
+    # The isotropic field must still have completed and been measured normally.
+    field_a = run_state.fields["SW620_Sort01_low_48h_Field001"]
+    assert field_a.status == "complete"
+
+
 def _build_radial_config_and_manifest(tmp_path: Path) -> Path:
     """Same fields as _build_config_and_manifest but with radial_distribution_2d
     enabled and a non-default bin count, to prove nuclei_table_schema() is

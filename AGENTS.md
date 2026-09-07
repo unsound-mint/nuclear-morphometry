@@ -164,6 +164,7 @@ Not yet implemented (see `Dayana_Nuclei_Complete_Build_Spec.md` section 52 for t
 plan): the interactive napari QC viewer (`qc/viewer.py` -- the intended way to actually
 produce manual annotations). This CLI command currently exits with an explicit "not yet
 implemented" message rather than a bare stub.
-`measurements.texture_distances_um` (physical-scale texture mode) is config-valid but not
-yet wired into the pipeline (`run_pipeline` raises explaining why — cross-field calibration
-consistency needs solving first); use `texture_distances_px` for now.
+`measurements.texture_distances_um` (physical-scale texture mode, spec 19.4) is now wired
+into the pipeline: `_process_field` converts per-field, names columns by the configured um
+value (not the per-field resolved pixel distance), and requires square X/Y pixels for the
+field being measured. See `docs/decisions/0012-texture-um-distance-column-naming.md`.

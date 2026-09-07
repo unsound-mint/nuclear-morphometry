@@ -23,7 +23,11 @@ from pydantic import BaseModel, ConfigDict
 
 from dayana_nuclei.config import load_config
 from dayana_nuclei.io.manifest import read_manifest_csv, resolve_image_sources, validate_manifest
-from dayana_nuclei.pipeline.analyze import _process_field, build_segmenter
+from dayana_nuclei.pipeline.analyze import (
+    _process_field,
+    build_segmenter,
+    texture_distance_labels_um,
+)
 from dayana_nuclei.provenance import package_version
 from dayana_nuclei.schema import nuclei_table_schema
 
@@ -125,6 +129,7 @@ def run_benchmark(config_path: Path, *, limit: int | None = None) -> BenchmarkRe
         include_intensity=config.measurements.intensity,
         include_texture=config.measurements.texture_2d,
         texture_distances_px=config.measurements.texture_distances_px,
+        texture_distance_labels_um=texture_distance_labels_um(config),
         additional_channels=tuple(
             (entry.prefix, entry.kind) for entry in config.measurements.additional_channels
         ),

@@ -156,8 +156,11 @@ INTENSITY_COLUMNS: tuple[str, ...] = (
     "std_intensity",
 )
 
-# --- Texture (spec section 19.4): column names are {property}_d{distance_px},
-# dynamic on the run's configured distances -- see nuclei_table_schema(). ---
+# --- Texture (spec section 19.4): column names are {property}_d{distance_px}
+# in legacy pixel-distance mode, or {property}_d{distance_um formatted}um in
+# physical-scale mode (see measurements/texture.py::format_um_distance_label
+# and docs/decisions/0012), dynamic on the run's configured distances -- see
+# nuclei_table_schema(). ---
 _TEXTURE_PROPERTIES: tuple[str, ...] = (
     "contrast",
     "homogeneity",
@@ -229,6 +232,7 @@ def nuclei_table_schema(
     include_intensity: bool,
     include_texture: bool,
     texture_distances_px: tuple[int, ...] = (),
+    texture_distance_labels_um: tuple[str, ...] = (),
     additional_channels: tuple[tuple[str, ChannelKind], ...] = (),
     radial_bins: int = 0,
 ) -> dict[str, pl.DataType | type[pl.DataType]]:
@@ -249,15 +253,29 @@ def nuclei_table_schema(
     ``[("h3k9ac", "nuclear"), ("laminac", "lamin_shell_core")]``.
     ``radial_bins`` is 0 when radial distribution is disabled (the default);
     a positive value adds that many bins' worth of columns.
+
+    ``texture_distance_labels_um``, when non-empty, selects physical-scale
+    texture mode (spec 19.4) and is used in place of ``texture_distances_px``
+    for column naming -- see
+    ``measurements/texture.py::format_um_distance_label`` and
+    ``docs/decisions/0012-texture-um-distance-column-naming.md`` for why
+    physical-scale columns must be named by the configured um value, not the
+    per-field resolved pixel distance. The two are mutually exclusive,
+    matching ``config.MeasurementsConfig``'s own validation.
     """
     result = dict(BASE_NUCLEI_TABLE_SCHEMA)
     if include_intensity:
         for column in INTENSITY_COLUMNS:
             result[column] = pl.Float64
     if include_texture:
-        for distance_px in texture_distances_px:
+        distance_labels = (
+            texture_distance_labels_um
+            if texture_distance_labels_um
+            else tuple(str(d) for d in texture_distances_px)
+        )
+        for label in distance_labels:
             for prop in _TEXTURE_PROPERTIES:
-                result[f"{prop}_d{distance_px}"] = pl.Float64
+                result[f"{prop}_d{label}"] = pl.Float64
     for prefix, kind in additional_channels:
         for suffix in _CHANNEL_KIND_SUFFIXES[kind]:
             result[f"{prefix}_{suffix}"] = pl.Float64

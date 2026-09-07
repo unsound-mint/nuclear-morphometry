@@ -147,11 +147,17 @@ runtime check cannot distinguish "normalized" from "raw" arrays by inspection.
 ## 2D texture (`measurements/texture.py`, spec section 19)
 
 Source channel: Hoechst (currently); 2D only by contract (spec 19.1). Column names encode
-the property and the pixel distance used: `{property}_d{distance_px}`, e.g. `contrast_d3`,
-`entropy_d10`. The distance list is configuration-driven
-(`measurements.texture_distances_px`, default `[3, 5, 10, 20]`, or
-`measurements.texture_distances_um` converted via `um_distances_to_pixels`), so the exact
-set of columns present depends on the run's config — this dictionary describes the property
+the property and the configured distance: `{property}_d{distance_px}` in legacy pixel-
+distance mode (`measurements.texture_distances_px`, default `[3, 5, 10, 20]`), e.g.
+`contrast_d3`, `entropy_d10`; or `{property}_d{distance_um}um` in physical-scale mode
+(`measurements.texture_distances_um`, mutually exclusive with the pixel-distance list), e.g.
+`contrast_d2um`, `entropy_d1p5um`. Physical-scale mode converts each field's own um distance
+to that field's pixel distance via `um_distances_to_pixels` (fails loudly if it would round to
+less than 1 pixel, and requires that field's X/Y pixel size be square), but names columns by
+the *configured* um value rather than the per-field resolved pixel count, so two fields with
+slightly different calibration still share one column set —
+see `docs/decisions/0012-texture-um-distance-column-naming.md`. Either way, the exact set of
+columns present depends on the run's config — this dictionary describes the property
 definitions, not an exhaustive column list.
 
 All properties are computed from a **masked** gray-level co-occurrence matrix (GLCM):

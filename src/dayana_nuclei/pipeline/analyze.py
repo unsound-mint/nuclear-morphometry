@@ -39,7 +39,11 @@ from dayana_nuclei.measurements.morphology_2d import Nucleus2DMorphology, measur
 from dayana_nuclei.measurements.morphology_3d import Nucleus3DMorphology, measure_3d_morphology
 from dayana_nuclei.measurements.radial import measure_radial_distribution_2d
 from dayana_nuclei.measurements.spatial import measure_perinuclear_rings
-from dayana_nuclei.measurements.texture import measure_texture_2d
+from dayana_nuclei.measurements.texture import (
+    format_um_distance_label,
+    measure_texture_2d,
+    um_distances_to_pixels,
+)
 from dayana_nuclei.models import ImageSource
 from dayana_nuclei.pipeline.run_state import (
     FieldState,
@@ -88,6 +92,15 @@ def build_segmenter(config: Config, *, allow_unvalidated_model: bool = False) ->
 
 def _run_dir_for(config: Config, run_id: str) -> Path:
     return config.experiment.output_root / run_id
+
+
+def texture_distance_labels_um(config: Config) -> tuple[str, ...]:
+    """The run's texture column-name labels for physical-scale mode (spec
+    19.4), or ``()`` when the run uses pixel-distance mode. Shared by
+    ``nuclei_table_schema`` callers (``run_pipeline`` and
+    ``pipeline.benchmark``) so both agree with what ``_process_field``
+    actually names its columns -- see docs/decisions/0012."""
+    return tuple(format_um_distance_label(d) for d in config.measurements.texture_distances_um)
 
 
 @contextmanager
@@ -187,12 +200,37 @@ def _process_field(
     texture_by_object: dict[int, dict[str, Any]] = {}
     with _timed_stage(stage_timings, "texture_s"):
         if config.measurements.texture_2d and volume.axes == "YX":
+            if config.measurements.texture_distances_um:
+                # Physical-scale mode (spec 19.4): converting um to pixels is
+                # inherently per-field (it depends on that field's own X/Y
+                # calibration), but the resulting columns are named by the
+                # configured um value, not the resolved pixel distance, so
+                # every field agrees on column names regardless of small
+                # calibration differences -- see docs/decisions/0012 and
+                # schema.py::nuclei_table_schema's texture_distance_labels_um.
+                if volume.spacing.x_um != volume.spacing.y_um:
+                    raise ValueError(
+                        f"{image_id!r}: measurements.texture_distances_um requires "
+                        f"square X/Y pixels (converting a physical distance to an "
+                        f"isotropic pixel count is ambiguous otherwise), but this "
+                        f"field has x_um={volume.spacing.x_um}, "
+                        f"y_um={volume.spacing.y_um}. Use "
+                        f"measurements.texture_distances_px for anisotropic-pixel data."
+                    )
+                distances_px = um_distances_to_pixels(
+                    list(config.measurements.texture_distances_um), volume.spacing.x_um
+                )
+                distance_labels: list[str] | None = list(texture_distance_labels_um(config))
+            else:
+                distances_px = list(config.measurements.texture_distances_px)
+                distance_labels = None
             texture_by_object = {
                 r.object_number: r.model_dump(exclude={"object_number"})
                 for r in measure_texture_2d(
                     result.labels,
                     volume.data,
-                    distances_px=list(config.measurements.texture_distances_px),
+                    distances_px=distances_px,
+                    distance_labels=distance_labels,
                     gray_levels=config.measurements.gray_levels,
                 )
             }
@@ -353,16 +391,6 @@ def run_pipeline(
 ) -> Path:
     config, config_hash = load_config(config_path)
 
-    if config.measurements.texture_2d and config.measurements.texture_distances_um:
-        raise ValueError(
-            "measurements.texture_distances_um is not yet wired into the pipeline: "
-            "converting um to pixels requires a per-field X/Y calibration, and doing "
-            "that independently per field risks each field resolving a different "
-            "pixel distance (and therefore a different texture column name), which "
-            "would break the run's single nuclei.parquet schema. Use "
-            "measurements.texture_distances_px for now."
-        )
-
     manifest_df = read_manifest_csv(config.experiment.manifest)
     validation = validate_manifest(manifest_df)
     if not validation.is_valid:
@@ -429,6 +457,7 @@ def run_pipeline(
         include_intensity=config.measurements.intensity,
         include_texture=config.measurements.texture_2d,
         texture_distances_px=config.measurements.texture_distances_px,
+        texture_distance_labels_um=texture_distance_labels_um(config),
         additional_channels=tuple(
             (entry.prefix, entry.kind) for entry in config.measurements.additional_channels
         ),

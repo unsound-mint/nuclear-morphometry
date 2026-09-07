@@ -9,8 +9,13 @@ Column naming: because the set of configured distances is user-controlled
 (spec 19.4: legacy pixel mode or physical-scale mode, resolved to a plain
 pixel-distance list by the caller), :class:`NucleusTexture2D` cannot have a
 fixed field for every distance ahead of time. It allows extra fields and
-each result carries dynamically-named columns ``{property}_d{distance_px}``,
-e.g. ``contrast_d3``, ``entropy_d10``.
+each result carries dynamically-named columns ``{property}_d{label}``, e.g.
+``contrast_d3``/``entropy_d10`` for pixel-distance mode or
+``contrast_d2um``/``entropy_d1p5um`` for physical-scale mode (see
+``format_um_distance_label`` and
+``docs/decisions/0012-texture-um-distance-column-naming.md`` for why
+physical-scale mode names columns by the configured um value rather than
+the per-field resolved pixel distance).
 
 Masked GLCM: ``skimage.feature.graycomatrix`` has no notion of an object
 mask -- it treats every pixel pair in the array as valid. Computing texture
@@ -110,6 +115,25 @@ def um_distances_to_pixels(distances_um: list[float], pixel_size_um: float) -> l
     return pixel_distances
 
 
+def format_um_distance_label(distance_um: float) -> str:
+    """Deterministic, identifier-safe column-name suffix for one configured
+    physical-scale texture distance (spec 19.4), e.g. ``1.5 -> "1p5um"``,
+    ``2.0 -> "2um"``.
+
+    Column names in physical-scale mode are keyed by this *configured* um
+    value, never by the per-field pixel distance ``um_distances_to_pixels``
+    resolves it to. Two fields with very slightly different X/Y calibration
+    can legitimately round the same um distance to different pixel counts;
+    naming columns by that per-field value would let two fields in the same
+    run disagree on column names and break the run's single nuclei.parquet
+    schema. See docs/decisions/0012-texture-um-distance-column-naming.md.
+    Kept in sync with schema.py's ``nuclei_table_schema`` by
+    ``tests/unit/test_texture.py::test_format_um_distance_label_matches_nuclei_table_schema``,
+    the same convention already used for radial-bin column names.
+    """
+    return f"{distance_um:g}".replace(".", "p") + "um"
+
+
 def _entropy(probabilities: NDArray[np.float64]) -> float:
     """Shannon entropy of a normalized 2D probability matrix, base 2, 0 for a
     degenerate (all-zero, e.g. no valid pixel pairs) matrix."""
@@ -124,6 +148,7 @@ def measure_texture_2d(
     intensity_image: NDArray[Any],
     *,
     distances_px: list[int],
+    distance_labels: list[str] | None = None,
     gray_levels: int = 256,
     angles: list[float] | None = None,
 ) -> list[NucleusTexture2D]:
@@ -136,9 +161,25 @@ def measure_texture_2d(
     this version, so it is computed directly here as
     ``-sum(p * log2(p))`` over the same (masked, renormalized) GLCM used for
     the other properties, at base 2.
+
+    ``distance_labels``, if given, must be the same length as
+    ``distances_px`` and supplies the column-name suffix for each distance
+    in place of the pixel value itself -- physical-scale mode (spec 19.4)
+    uses this to name columns by the configured um distance rather than the
+    per-field resolved pixel distance (see ``format_um_distance_label``).
+    Defaults to ``str(distance_px)`` per distance, i.e. unchanged behavior
+    for legacy pixel-distance mode.
     """
     if labels.ndim != 2:
         raise ValueError(f"measure_texture_2d requires a 2D label image, got ndim={labels.ndim}")
+    column_labels = (
+        list(distance_labels) if distance_labels is not None else [str(d) for d in distances_px]
+    )
+    if len(column_labels) != len(distances_px):
+        raise ValueError(
+            f"distance_labels has {len(column_labels)} entries but distances_px has "
+            f"{len(distances_px)}; they must be paired 1:1."
+        )
 
     active_angles = list(angles) if angles is not None else list(_DEFAULT_ANGLES)
     results: list[NucleusTexture2D] = []
@@ -171,15 +212,15 @@ def measure_texture_2d(
             # (n_distances, n_angles) -> average over angles per distance.
             per_distance_angle = np.nan_to_num(graycoprops(normalized_glcm, prop_name), nan=0.0)
             per_distance = per_distance_angle.mean(axis=1)
-            for distance_px, value in zip(distances_px, per_distance, strict=True):
-                columns[f"{prop_name}_d{distance_px}"] = float(value)
+            for label, value in zip(column_labels, per_distance, strict=True):
+                columns[f"{prop_name}_d{label}"] = float(value)
 
-        for distance_index, distance_px in enumerate(distances_px):
+        for distance_index, label in enumerate(column_labels):
             entropies = [
                 _entropy(normalized_glcm[:, :, distance_index, angle_index])
                 for angle_index in range(len(active_angles))
             ]
-            columns[f"entropy_d{distance_px}"] = float(np.mean(entropies))
+            columns[f"entropy_d{label}"] = float(np.mean(entropies))
 
         results.append(NucleusTexture2D(object_number=int(prop.label), **columns))
 
