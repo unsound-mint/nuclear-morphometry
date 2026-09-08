@@ -13,9 +13,11 @@ import pytest
 import tifffile
 from skimage.draw import disk
 
-from nuclear_morphometry.config import load_config
+import nuclear_morphometry.pipeline.benchmark as benchmark_module
+from nuclear_morphometry.config import Config, load_config
 from nuclear_morphometry.io.manifest import validate_manifest, write_manifest_csv
 from nuclear_morphometry.pipeline.benchmark import run_benchmark
+from nuclear_morphometry.segmentation.base import Segmenter
 
 
 def _write_synthetic_field(path: Path) -> None:
@@ -177,6 +179,26 @@ def test_benchmark_respects_limit(tmp_path: Path) -> None:
     report = run_benchmark(config_path, limit=1)
 
     assert len(report.fields) == 1
+
+
+def test_benchmark_passes_unvalidated_model_opt_in_to_segmenter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = _build_config_and_manifest(tmp_path)
+    original = benchmark_module.build_segmenter
+    received: list[bool] = []
+
+    def recording_build_segmenter(
+        config: Config, *, allow_unvalidated_model: bool = False
+    ) -> Segmenter:
+        received.append(allow_unvalidated_model)
+        return original(config, allow_unvalidated_model=allow_unvalidated_model)
+
+    monkeypatch.setattr(benchmark_module, "build_segmenter", recording_build_segmenter)
+
+    run_benchmark(config_path, limit=1, allow_unvalidated_model=True)
+
+    assert received == [True]
 
 
 def test_benchmark_raises_on_empty_manifest_after_limit_zero(tmp_path: Path) -> None:

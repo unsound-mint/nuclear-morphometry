@@ -84,6 +84,11 @@ uv run nuclear-morphometry manifest validate manifest.csv
 Always run `validate` before using a manifest for analysis, whether or not it came from
 `manifest build`.
 
+MetaMorph/MetaSeries TIFFs are read from their native page metadata, including calibrated
+X/Y spacing and Z step derived from the per-plane positions. Use `nuclear-morphometry inspect`
+to confirm the resolved values before a run; see
+`docs/decisions/0015-metamorph-tiff-physical-calibration.md`.
+
 If an exported TIFF has lost its physical calibration, add `spacing_x_um`, `spacing_y_um`,
 and (for a Z-stack) `spacing_z_um` columns using values transcribed from the authoritative
 microscope acquisition record. Never estimate these values from image dimensions. Embedded

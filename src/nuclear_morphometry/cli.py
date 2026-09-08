@@ -249,13 +249,20 @@ def benchmark(
     config: Annotated[Path, typer.Argument(exists=True)],
     limit: Annotated[int | None, typer.Option("--limit")] = None,
     output: Annotated[Path | None, typer.Option("--output")] = None,
+    allow_unvalidated_model: Annotated[
+        bool, typer.Option("--allow-unvalidated-model", help=_ALLOW_UNVALIDATED_MODEL_HELP)
+    ] = False,
 ) -> None:
     """Per-stage performance benchmark: I/O, segmentation, morphology,
     intensity, texture, QC, output timing plus peak RSS/CUDA memory, object
     counts, and image dimensions (spec section 32). Runs the real pipeline
     against a scratch directory -- masks/tables are not kept, only timings.
     """
-    report = run_benchmark(config, limit=limit)
+    report = run_benchmark(
+        config,
+        limit=limit,
+        allow_unvalidated_model=allow_unvalidated_model,
+    )
 
     if output is None:
         loaded_config, _ = load_config(config)

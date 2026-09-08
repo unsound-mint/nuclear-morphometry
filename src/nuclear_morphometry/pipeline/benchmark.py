@@ -93,7 +93,12 @@ def _peak_cuda_memory_mb() -> float | None:
     return torch.cuda.max_memory_allocated() / (1024 * 1024)
 
 
-def run_benchmark(config_path: Path, *, limit: int | None = None) -> BenchmarkReport:
+def run_benchmark(
+    config_path: Path,
+    *,
+    limit: int | None = None,
+    allow_unvalidated_model: bool = False,
+) -> BenchmarkReport:
     """Run the first ``limit`` fields (all fields if ``None``) of ``config_path``
     through the real pipeline, reporting per-stage timing, image dimensions,
     object counts, and peak process RSS / CUDA memory (spec section 32).
@@ -128,7 +133,7 @@ def run_benchmark(config_path: Path, *, limit: int | None = None) -> BenchmarkRe
         pass
 
     # Load the model once (spec 32.1), same as a real run -- never per field.
-    segmenter = build_segmenter(config)
+    segmenter = build_segmenter(config, allow_unvalidated_model=allow_unvalidated_model)
     nuclei_schema = nuclei_table_schema(
         include_intensity=config.measurements.intensity,
         include_texture=config.measurements.texture_2d,

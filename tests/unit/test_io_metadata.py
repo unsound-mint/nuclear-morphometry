@@ -4,7 +4,58 @@ import numpy as np
 import pytest
 import tifffile
 
-from nuclear_morphometry.io.metadata import inspect_image
+from nuclear_morphometry.io.metadata import _parse_metamorph_descriptions, inspect_image
+
+
+def _metamorph_description(*, x_um: float, y_um: float, z_um: float) -> str:
+    return f"""<MetaData>
+    <prop id="spatial-calibration-state" type="string" value="on"/>
+    <prop id="spatial-calibration-x" type="float" value="{x_um}"/>
+    <prop id="spatial-calibration-y" type="float" value="{y_um}"/>
+    <prop id="spatial-calibration-units" type="string" value="um"/>
+    <prop id="z-position" type="float" value="{z_um:.2f}"/>
+    </MetaData>"""
+
+
+def test_parse_metamorph_xml_recovers_xy_and_rounded_z_step() -> None:
+    descriptions = [
+        _metamorph_description(x_um=0.183, y_um=0.183, z_um=z)
+        for z in (1710.45, 1710.56, 1710.66, 1710.76, 1710.86)
+    ]
+
+    x_um, y_um, z_um, warnings = _parse_metamorph_descriptions(descriptions)
+
+    assert x_um == pytest.approx(0.183)
+    assert y_um == pytest.approx(0.183)
+    assert z_um == pytest.approx(0.1)
+    assert warnings == []
+
+
+def test_parse_metamorph_xml_rejects_inconsistent_xy_calibration() -> None:
+    descriptions = [
+        _metamorph_description(x_um=0.183, y_um=0.183, z_um=1.0),
+        _metamorph_description(x_um=0.2, y_um=0.183, z_um=1.1),
+    ]
+
+    x_um, y_um, z_um, warnings = _parse_metamorph_descriptions(descriptions)
+
+    assert x_um is None
+    assert y_um is None
+    assert z_um == pytest.approx(0.1)
+    assert any("inconsistent X/Y" in warning for warning in warnings)
+
+
+def test_parse_metamorph_xml_rejects_nonuniform_z_positions() -> None:
+    descriptions = [
+        _metamorph_description(x_um=0.183, y_um=0.183, z_um=z) for z in (1.0, 1.1, 1.4, 1.5)
+    ]
+
+    x_um, y_um, z_um, warnings = _parse_metamorph_descriptions(descriptions)
+
+    assert x_um == pytest.approx(0.183)
+    assert y_um == pytest.approx(0.183)
+    assert z_um is None
+    assert any("non-uniform Z" in warning for warning in warnings)
 
 
 def test_inspect_uncalibrated_tiff_reports_unknown_spacing(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 The software implementation and the scientific acceptance of a thesis run are separate
 milestones. Do not cite measurements from a run until every applicable item below is closed.
 
-## 1. Recover authoritative acquisition metadata
+## 1. Verify authoritative acquisition metadata
 
 For every acquisition batch, obtain from the Zeiss source metadata, microscope export, or
 lab acquisition record:
@@ -16,10 +16,12 @@ lab acquisition record:
 - exposure, laser power, gain, and any other intensity-setting values needed to establish
   comparability across low/high/bulk.
 
-Prefer original CZI files with intact metadata. If only metadata-stripped TIFFs are
-available, transcribe the verified calibration into manifest columns `spacing_x_um`,
-`spacing_y_um`, and `spacing_z_um`. Never estimate spacing from array dimensions or nuclear
-appearance.
+The current MetaMorph TIFFs already contain X=0.183 um/pixel, Y=0.183 um/pixel, and a 0.1 um
+Z step in their per-page XML metadata, and the pipeline reads those values directly. Confirm
+each representative file with `nuclear-morphometry inspect`. Only for a genuinely
+metadata-stripped TIFF should verified values be transcribed into manifest columns
+`spacing_x_um`, `spacing_y_um`, and `spacing_z_um`. Never estimate spacing from array
+dimensions or nuclear appearance.
 
 ## 2. Build the experimental manifest
 
@@ -56,24 +58,14 @@ uv run nuclear-morphometry validate-segmentation \
   --output validation_report.json
 ```
 
-## 4. Establish legacy 2D continuity
+## 4. Validate the repository-native 2D analysis
 
-Obtain the original `hoechst_cellprofiler.cppproj`, its per-object export, and label masks.
-Run both measurement implementations on the same masks before comparing them. Resolve and
-document any mathematical-definition difference; do not change expected outputs merely to
-force agreement.
-
-```bash
-uv run nuclear-morphometry compare-measurements \
-  --ours results/<run-id>/nuclei.parquet \
-  --reference legacy_cellprofiler.csv \
-  --mapping configs/cellprofiler_mapping.toml \
-  --output comparison.json
-```
-
-Use `configs/example_2d.toml` as a starting point, not an accepted final config. Its explicit
-max projection, 3/5/10/20-pixel texture distances, and five radial bins reproduce the
-preliminary feature family but still require parity and physical-scale review.
+There is no CellProfiler project or export to reproduce, so CellProfiler parity is not a
+prerequisite. Validate the repository implementation with its analytical measurement tests,
+synthetic end-to-end tests, and real-data segmentation/QC review. Use
+`configs/example_2d.toml` as a starting point; its explicit max projection, 3/5/10/20-pixel
+texture distances, and five radial bins preserve the preliminary feature family, while the
+final scale choice still requires physical-resolution and biological review.
 
 ## 5. Review a pilot before the full run
 
@@ -117,7 +109,6 @@ Preserve together:
 - reviewed manifest and acquisition record;
 - accepted 2D and 3D configs;
 - segmentation reference masks and validation report;
-- CellProfiler parity report;
 - run provenance and input hashes;
 - masks, raw and analysis-ready Parquet tables;
 - manual QC annotations, overlays, and QC report;
