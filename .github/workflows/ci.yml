@@ -21,10 +21,11 @@ jobs:
 
       # `gpu` is installed on the CPU runner because the backend adapter and its
       # mocked boundary tests import torch/cellpose. Real CUDA inference remains
-      # a separately marked hardware validation. The optional napari viewer has
-      # its own job below so core CI does not acquire a Qt dependency.
+      # a separately marked hardware validation. `gui` is installed so Pyright
+      # can resolve the napari viewer's imports; the viewer tests only run in
+      # the gui-test job below, under a virtual display.
       - name: Sync dependencies
-        run: uv sync --extra dev --extra gpu
+        run: uv sync --extra dev --extra gpu --extra gui
 
       - name: Ruff check
         run: uv run ruff check .
