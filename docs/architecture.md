@@ -1,8 +1,7 @@
 # Architecture
 
-This describes the repository as it actually exists. See `Nuclear_Morphometry_Complete_Build_Spec.md`
-section 52 for the full phase plan and `AGENTS.md` for the current implementation status
-summary.
+This describes the repository as it actually exists. See `design-spec.md` for the
+specification it implements and `../AGENTS.md` for contributor rules.
 
 ## Module boundaries
 
@@ -106,10 +105,11 @@ segmentation.normalize.normalize_percentile (segmentation-only copy)
 Segmenter.segment(normalized_image, spacing) -> SegmentationResult
    (FixtureSegmenter: Otsu + connected components, deterministic, test-only;
     CellposeSegmenter: Cellpose-SAM on GPU, model loaded once per run --
-    2D verified working on real hardware; 3D verified correct on one
-    realistic-signal synthetic case after fixing a normalization-bypass bug,
-    real-data validation via `validate-segmentation` still required before
-    production use, see docs/decisions/0008)
+    2D ran end-to-end on a GPU on a synthetic case; 3D gave sensible
+    results on one realistic-signal synthetic case after a normalization-bypass
+    fix, with unexplained fragmentation on some binary-edge shapes. No real
+    reference mask set exists yet, so `validate-segmentation` on real data is
+    required before production use, see docs/decisions/0008)
         |
    +----+---------------------------------------------------+
    |                                                         |
@@ -192,10 +192,10 @@ Cellpose backend. See `docs/decisions/0001-cellpose-segmentation-backend.md` for
 installed Cellpose version's API and why `model = "auto"` requires an explicit opt-in
 rather than resolving silently.
 
-2D Cellpose-SAM segmentation is verified working end-to-end on real GPU hardware. 3D mode
-initially showed severe over-segmentation on synthetic test volumes; this was traced to a
-real normalization-bypass bug (now rejected at config validation, see
-`Config._check_cellpose_requires_normalization`) rather than a genuine 3D limitation for
-realistic signal — see `docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a
+2D Cellpose-SAM segmentation ran end-to-end on a GPU (`tests/integration/test_cellpose_gpu.py`,
+synthetic data only; there is no real reference mask set yet). 3D mode initially showed severe
+over-segmentation on synthetic test volumes; this was traced to a real normalization-bypass
+bug (now rejected at config validation, see `Config._check_cellpose_requires_normalization`),
+though some binary-edge synthetic shapes still fragment unexplained — see `docs/decisions/0008-cellpose-3d-oversegmentation.md`. Do not trust a
 3D run's object count until it has been checked with `validate-segmentation` against real
 reference masks.

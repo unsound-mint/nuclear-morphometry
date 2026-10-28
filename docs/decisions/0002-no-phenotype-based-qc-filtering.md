@@ -8,12 +8,12 @@ Accepted. This is the central scientific commitment of the whole project
 ## Context
 
 The legacy CellProfiler workflow used morphology filters (area, solidity,
-eccentricity, form factor/circularity) as QC gates. For this thesis that is
+eccentricity, form factor/circularity) as QC gates. For this kind of study that is
 scientifically dangerous: solidity, eccentricity, circularity, and
 irregularity are candidate **phenotypes** SYBR-low/SYBR-high nuclei may
 differ on (spec section 1.1). A QC step that removes "too eccentric" or
 "too irregular" nuclei can silently delete the exact biological signal the
-thesis is testing for, and would do so asymmetrically across groups if the
+study is testing for, and would do so asymmetrically across groups if the
 groups differ in prevalence of extreme morphology.
 
 ## Decision

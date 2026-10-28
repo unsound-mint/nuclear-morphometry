@@ -121,7 +121,7 @@ def manifest_build(
     input_root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output: Annotated[Path, typer.Option("--output")] = Path("manifest.csv"),
 ) -> None:
-    """Scan input_root for the thesis filename convention and write a draft manifest."""
+    """Scan input_root for the filename convention and write a draft manifest."""
     df = build_manifest(input_root)
     write_manifest_csv(df, output)
     typer.echo(
@@ -323,7 +323,7 @@ def validate_segmentation_command(
     (spec 14.3) -- it is always this explicit, documented parameter.
 
     This command only computes metrics. Accepting a segmentation model for
-    real thesis analysis still requires manually reviewing representative
+    real analysis still requires manually reviewing representative
     overlays and recording the decision in a decision record under
     docs/decisions/ (spec 14.3); that judgment is not automated here.
     """

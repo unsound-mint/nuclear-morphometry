@@ -8,8 +8,8 @@ inputs and is deferred to spec section 14 real-data validation.**
 
 ## Context (original finding, since partially superseded)
 
-While verifying `segmentation/cellpose_backend.py`'s 3D path empirically on this
-session's GPU, three synthetic 3D test volumes were segmented with
+While verifying `segmentation/cellpose_backend.py`'s 3D path empirically on a
+CUDA GPU, three synthetic 3D test volumes were segmented with
 `CellposeSegmenter(model="cpsam_v2", do_3D=True)`, calling `segment()` directly and
 **bypassing `segmentation.normalize.normalize_percentile`** (the pipeline-level
 normalization step `pipeline/analyze.py::_process_field` normally applies before
@@ -88,11 +88,11 @@ no-silent-fallback invariant), rather than silently producing a badly over-segme
    mechanics only (this file's stated scope) rather than a specific object count for
    the binary-sphere case, since that specific synthetic shape is known or-effective
    for normalization and its fragmentation is not fully understood.
-5. Before any real 3D thesis run: build a reference mask set (spec 14.1) and run
+5. Before any real 3D analysis run: build a reference mask set (spec 14.1) and run
    `validate-segmentation` (once implemented) specifically in 3D mode against real
    Hoechst-stained nuclei. Confidence is higher than before this investigation (the
    realistic-signal-shape case now works correctly), but real-data validation is
-   still required before trusting any 3D thesis result — this ADR upgrades the risk
+   still required before trusting any 3D result — this ADR upgrades the risk
    assessment, it does not close it.
 
 ## Consequences

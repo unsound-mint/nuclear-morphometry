@@ -2,13 +2,12 @@
 
 ## Status
 
-Accepted. Implementation of `segmentation/cellpose_backend.py` itself is deferred to
-a later work session (see AGENTS.md phase plan); this record captures the API
-investigation so that implementation does not have to re-derive it.
+Accepted and implemented in `segmentation/cellpose_backend.py`. This record captures the
+API investigation behind it.
 
 ## Context
 
-The build spec (section 5.1, 13.2) requires a CUDA-capable Cellpose backend with
+The design spec (sections 5.1, 13.2) requires a CUDA-capable Cellpose backend with
 per-tissue model selection (`model = "auto"` resolving to a validated default,
 spec 11.1) and explicit physical anisotropy support for 3D.
 
@@ -82,12 +81,12 @@ The backend adapter (`segmentation/cellpose_backend.py`) was verified by direct
 inspection of the installed Cellpose 4.2.1.1 source (`CellposeModel.__init__` and
 `.eval` signatures, the `(masks, flows, styles)` return shape for a single-image
 call, and the existing `torch.no_grad()` wrapping in `cellpose/core.py`), not by
-running a full end-to-end GPU inference in this session. `cpsam_v2` is a ~1.15 GB
-one-time download; three attempts in this session failed with the download's temp
+running a full end-to-end GPU inference at that point. `cpsam_v2` is a ~1.15 GB
+one-time download; three attempts failed with the download's temp
 file disappearing mid-move (`~/.cellpose/models/tmp*` -> final path), with another
 process's own partial download visible in the same shared cache directory at the
-time -- consistent with a concurrency/shared-cache race on this machine (multiple
-Claude Code sessions can run here, see the repository's global engineering rules)
+time -- consistent with a concurrency/shared-cache race on this machine (several
+processes can share that cache)
 rather than a code defect. `tests/integration/test_cellpose_gpu.py` exercises real
 inference end-to-end and is marked `@pytest.mark.gpu @pytest.mark.cellpose_model`;
 it skips cleanly until the weights are actually cached (check with

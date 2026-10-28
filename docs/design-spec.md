@@ -1,60 +1,40 @@
-# Nuclear Morphometry — Complete Build Specification
+# Nuclear Morphometry — Design Specification
 
-**Target implementer:** Claude Sonnet 5 (or another strong coding agent)  
-**Project type:** Thesis-specific scientific image-analysis application  
-**Primary objective:** Replace the current CellProfiler-based workflow with a reproducible, GPU-first Python pipeline for 2D and true-3D analysis of colorectal-cancer nuclei from confocal microscopy.
+**Project type:** Scientific image-analysis application (command-line, GPU-first)  
+**Primary objective:** A reproducible, GPU-first Python pipeline for 2D and true-3D analysis of nuclei from confocal microscopy, replacing a CellProfiler-based workflow.
+
+This document specifies the pipeline: stages, data model, measurement definitions, QC policy and output contract. Source comments and decision records cite it by section number (for example "spec section 27.1"), so the numbering is stable. Sections 44 and 52 are intentionally empty. Per-column definitions live in `measurement-dictionary.md`, module boundaries in `architecture.md`, assumptions and third-party adaptations in `decisions/`, and contributor rules in `../AGENTS.md`.
 
 ---
 
-## 0. Instruction to the implementation agent
+## 0. Conventions
 
-You are the primary implementation agent for this repository.
+1. Scientific correctness and reproducibility are more important than code aesthetics or marginal speed.
+2. Performance is a first-class requirement where it does not alter scientific semantics.
+3. Missing experimental facts are never invented.
+4. A feature that depends on data that may be absent is implemented with synthetic-fixture tests, fails clearly when the required metadata are missing, and documents what must be validated on real data.
+5. This is a focused pipeline, not a generic microscopy platform. Avoid unnecessary dependencies and abstractions.
+6. Scientifically meaningful assumptions and API/version adaptations are recorded in `docs/decisions/`.
+7. Production configurations never fall back silently from CUDA to CPU.
+8. Segmentation resolution, physical calibration, measurement definitions and exclusion semantics are not changed as a performance shortcut.
 
-**Build the complete application described in this document end-to-end.** Do not stop after scaffolding, pseudo-code, or a proof of concept. Implement the CLI, data model, microscopy I/O, segmentation backend, measurements, QC workflow, exports, tests, documentation, and performance/provenance infrastructure described below.
-
-Work in small, reviewable increments internally, but continue until the full Definition of Done is satisfied.
-
-### Operating rules
-
-1. Read this entire specification before changing files.
-2. Scientific correctness and reproducibility are more important than code aesthetics or marginal speed.
-3. Performance is a first-class requirement where it does not alter scientific semantics.
-4. Do not silently invent missing experimental facts.
-5. If a feature depends on data that are not yet available, implement the feature/interface and tests with synthetic fixtures, fail clearly when required real metadata are absent, and document what must be validated on the real data.
-6. Do not ask the user to choose ordinary engineering details that this specification already resolves.
-7. Do not broaden this into a generic microscopy platform. This is a thesis-specific pipeline.
-8. Avoid unnecessary dependencies and abstractions.
-9. Run tests, Ruff, and Pyright before considering the build complete.
-10. Report any scientifically meaningful assumption or API/version adaptation in `docs/decisions/`.
-11. Do not silently fall back from CUDA to CPU in a production configuration.
-12. Do not change segmentation resolution, physical calibration, measurement definitions, or exclusion semantics as a performance shortcut.
-
-The application may be developed on a machine without the final microscopy data or CUDA GPU. CPU-only unit tests and synthetic fixtures must still work. GPU-dependent integration tests must be cleanly marked/skipped when CUDA is unavailable.
+The pipeline can be developed on a machine without the microscopy data or a CUDA GPU. CPU-only unit tests and synthetic fixtures work everywhere. GPU-dependent integration tests are marked and skipped when CUDA is unavailable.
 
 ---
 
 # 1. Scientific context and source requirements
 
-This application supports an undergraduate BIOL 490 Honor Thesis research on **mtDNA-associated cellular states, nuclear architecture, chromatin organization, and nuclear mechanics in colorectal cancer cells**.
+This application is a nuclear morphometry pipeline for confocal microscopy. The experimental design it was built around, used as the running example throughout this document, is:
 
-The biological study uses:
-
-- **Cell lines:** SW480 and SW620.
-  - SW480 is primary-tumor-derived.
-  - SW620 is lymph-node-metastasis-derived from the same patient.
-- **Core sorted populations:** SYBR-low, SYBR-high, and bulk-sorted control.
-  - SYBR-medium may exist in preliminary data but is not a required core group.
-- **Biological replicate:** one independent sorting experiment.
-  - Final target: at least 3 independent sorts.
-- **Main imaging endpoint:** currently 48 h post-sort, subject to matched molecular validation.
-- **Primary imaging channel:** Hoechst/DAPI-like nuclear DNA channel.
+- **Cell lines:** SW480 and SW620 (colorectal cancer; SW480 is primary-tumor-derived, SW620 is lymph-node-metastasis-derived from the same patient).
+- **Sorted populations:** SYBR-low, SYBR-high, and a bulk-sorted control. SYBR-medium may exist in some data but is not a core group.
+- **Biological replicate:** one independent sorting experiment (`SortID`).
+- **Primary imaging channel:** Hoechst/DAPI-like nuclear DNA.
 - **Additional channels/markers:** H3K9Ac, Lamin A/C, MitoTracker; H3K9me3 may also be used.
-- **Mechanical endpoint outside this software:** isolated-nucleus AFM, including Young's modulus and nuclear height.
-- **Validation outside this software:** post-sort flow re-analysis and mtDNA:nDNA qPCR.
 
-The image-analysis objective is to produce robust, reproducible **per-nucleus** measurements in both 2D and true 3D **without filtering away abnormal morphology that may itself be the phenotype**.
+The image-analysis objective is to produce robust, reproducible **per-nucleus** measurements in both 2D and true 3D **without filtering away abnormal morphology that may itself be the phenotype**. Orthogonal readouts (mechanical measurements, flow re-analysis, qPCR) are outside this software.
 
-## 1.1 Biological questions the image analysis must support
+## 1.1 Biological questions the image analysis supports
 
 The pipeline must support testing whether SYBR-defined cellular states differ in:
 
@@ -93,24 +73,9 @@ Every output nucleus must retain its biological hierarchy so downstream analysis
 
 ---
 
-# 2. Preliminary analysis that must remain reproducible
+# 2. Legacy comparison
 
-Exploratory SW620 data at 48 h reported approximately:
-
-| Metric | SYBR-high | SYBR-medium | SYBR-low |
-|---|---:|---:|---:|
-| Nuclear area | ~2264 px² | ~2253 px² | ~2510 px² |
-| Circularity | 0.77 | 0.74 | 0.70 |
-| Entropy | 2.12 | 1.89 | 2.18 |
-| Contrast | 5.05 | 3.55 | 5.73 |
-
-The preliminary interpretation was:
-
-- SYBR-low nuclei appeared about 10–15% larger in 2D.
-- SYBR-low nuclei appeared less circular / more irregular.
-- Entropy and contrast suggested altered image texture.
-
-These are **preliminary continuity targets**, not hard-coded expected outcomes.
+The pipeline replaces an earlier CellProfiler workflow. Legacy 2D results (nuclear area, circularity, entropy, contrast) are **continuity targets** for the 2D measurements, not hard-coded expected outcomes.
 
 The new software must provide a way to compare its 2D measurements against legacy CellProfiler outputs on the **same masks**, so differences in segmentation do not contaminate measurement-parity testing.
 
@@ -131,7 +96,7 @@ The existing pipeline also used morphology filters such as:
 - Eccentricity.
 - FormFactor/circularity.
 
-This is dangerous because solidity, eccentricity, circularity, and irregularity are themselves thesis phenotypes.
+This is dangerous because solidity, eccentricity, circularity, and irregularity can themselves be the phenotype under study.
 
 ## 3.1 Required correction
 
@@ -249,7 +214,6 @@ Create approximately this structure. Minor naming changes are acceptable only wh
 ```text
 nuclear-morphometry/
 ├── AGENTS.md
-├── CLAUDE.md
 ├── README.md
 ├── pyproject.toml
 ├── uv.lock
@@ -482,7 +446,7 @@ nuclear-morphometry manifest validate <manifest>
 
 `manifest build` may parse filenames using a configurable regex and/or inspect image channel metadata, but the generated manifest must always be validated before use.
 
-Default filename patterns should recognize the thesis naming convention such as:
+Default filename patterns should recognize the lab's naming convention such as:
 
 ```text
 SW620_Sort01_low_48h_Field003_Hoechst.tif
@@ -571,7 +535,7 @@ A representative 3D config should look conceptually like this:
 
 ```toml
 [experiment]
-name = "thesis"
+name = "example"
 manifest = "manifest.csv"
 output_root = "results"
 
@@ -1007,7 +971,7 @@ For Hoechst and applicable additional channels, compute per-nucleus:
 - maximum intensity
 - optional standard deviation
 
-Primary thesis outputs should emphasize mean/median/integrated values.
+Primary outputs should emphasize mean/median/integrated values.
 
 Always measure on the original source intensity values, not segmentation-normalized arrays.
 
@@ -1139,7 +1103,7 @@ qc_exclusion_reason
 
 Objects touching the image/volume boundary must be flagged.
 
-The thesis expects border-truncated nuclei to be excluded from the default biological analysis, but the object and its measurements must remain in the raw per-object dataset.
+Border-truncated nuclei are excluded from the default biological analysis, but the object and its measurements must remain in the raw per-object dataset.
 
 Therefore:
 
@@ -1445,7 +1409,7 @@ Implement an optional finalization command:
 nuclear-morphometry finalize-run <run-dir> --hash-inputs
 ```
 
-to calculate full input hashes for archival/final-thesis runs.
+to calculate full input hashes for archival/final runs.
 
 ---
 
@@ -1942,7 +1906,7 @@ area_um2
 - rationale: tests preliminary nuclear-size phenotype
 ```
 
-This document is part of the thesis reproducibility record.
+This document is part of the reproducibility record.
 
 ---
 
@@ -1967,127 +1931,13 @@ Add later records for meaningful deviations discovered during implementation.
 
 ---
 
-# 43. AGENTS.md to generate
+# 43. Contributor rules
 
-Create `AGENTS.md` with the following intent.
-
-It may be edited for clarity, but do not weaken these rules:
-
-```markdown
-# Project
-
-GPU-first microscopy analysis pipeline for an undergraduate BIOL 490 thesis.
-
-This is thesis-specific scientific software, not a general image-analysis framework.
-
-## Priorities
-
-1. Scientific correctness and reproducibility.
-2. Segmentation validity across all biological conditions.
-3. Performance.
-4. Simplicity and maintainability.
-5. Convenience.
-
-Do not trade scientific correctness for performance.
-
-## Before changing code
-
-- Read the nearest relevant implementation and tests first.
-- Do not introduce a dependency unless existing dependencies cannot solve the problem cleanly.
-- For non-trivial changes, state the intended approach and invariants before implementation.
-- Profile before performance optimization.
-- Do not change validated scientific semantics as part of refactoring.
-
-## Scientific invariants
-
-- Raw microscopy files are immutable.
-- True-3D analysis requires real X/Y/Z physical spacing. Never silently assume isotropic voxels.
-- Preserve CellLine, SortID, Condition, Timepoint, Field, and ObjectNumber for every nucleus.
-- SortID is the biological replicate. Nuclei are nested observations.
-- Never exclude nuclei because they are biologically irregular, elongated, eccentric, low-solidity, or low-circularity.
-- QC may remove/flag technical failures such as border truncation, debris, segmentation failure, saturation, or focus failure.
-- Preserve rejected objects and the reason for rejection.
-- Do not change validated Hoechst segmentation when adding other channels without explicit revalidation.
-- Do not silently change a measurement's mathematical definition.
-
-## Architecture
-
-Keep separate:
-- microscopy I/O and metadata
-- segmentation
-- measurements
-- QC
-- pipeline execution
-- export/provenance
-- GUI
-
-The computational core must not depend on napari or Qt.
-
-## GPU/performance
-
-- Load the model once per run.
-- Use CUDA when requested.
-- Use inference mode.
-- Avoid unnecessary CPU↔GPU transfers.
-- Do not add CuPy, cuCIM, Dask, multiprocessing, or distributed execution without profiling evidence.
-- Bound memory use.
-- Do not optimize by silently downsampling or changing scientific semantics.
-- Performance-sensitive changes require benchmark evidence.
-
-## Testing
-
-Every scientific measurement requires analytical or independently verified tests.
-Maintain unit, integration, regression, and benchmark coverage.
-A segmentation backend/model change requires rerunning the fixed validation set.
-
-Never change expected scientific outputs merely to make a failing test pass.
-
-## Outputs
-
-Canonical tables are Parquet.
-Each run preserves config, manifest, masks, measurements, QC, and provenance.
-
-## Errors
-
-Validate at boundaries and fail early with actionable errors.
-Do not silently fall back from GPU to CPU in production.
-
-## Definition of done
-
-A change is complete only when:
-- relevant tests pass
-- Ruff and Pyright pass
-- scientific invariants remain satisfied
-- error paths are handled
-- provenance remains complete
-- performance has not materially regressed without justification
-- behavior/measurement documentation is updated
-```
+Contributor and development rules live in `AGENTS.md`: priorities (correctness, segmentation validity, performance, simplicity), the scientific invariants (immutable raw files, real X/Y/Z spacing for 3D, SortID as the replicate, no phenotype-based exclusion, preserved rejected objects), architecture boundaries (the computational core does not depend on napari or Qt), GPU/performance rules, testing expectations, error handling and the definition of done.
 
 ---
 
-# 44. CLAUDE.md to generate
-
-Create:
-
-```markdown
-# Claude Code instructions
-
-Read and follow `AGENTS.md` as the canonical repository instructions.
-
-Before scientific changes, also read:
-- `docs/measurement-dictionary.md`
-- relevant files under `docs/decisions/`
-
-Do not duplicate project rules here; `AGENTS.md` is the source of truth.
-
-For substantial work:
-1. inspect the existing implementation/tests;
-2. state the short implementation plan;
-3. implement;
-4. run relevant tests, Ruff, and Pyright;
-5. summarize scientific/output changes explicitly.
-```
+# 44. (Intentionally empty)
 
 ---
 
@@ -2112,7 +1962,7 @@ Example logic:
 - low solidity only → **do not exclude**
 - low circularity only → **do not exclude**
 
-This is central to the thesis.
+This is central to the project.
 
 ---
 
@@ -2163,7 +2013,7 @@ axis_major_um
 
 # 48. Scientific result immutability
 
-Once a final segmentation configuration has been accepted for a thesis dataset:
+Once a final segmentation configuration has been accepted for a dataset:
 
 - preserve the exact config;
 - preserve model identity;
@@ -2212,7 +2062,7 @@ value supported by the acquisition record. The pipeline will not assume Z=1.
 
 ---
 
-# 51. Out of scope for the first complete build
+# 51. Out of scope
 
 Do not implement these unless they become necessary from real-data validation:
 
@@ -2234,109 +2084,13 @@ Interfaces may be clean enough to extend later, but do not add placeholder frame
 
 ---
 
-# 52. Implementation order
-
-Implement in this order, but continue through all phases.
-
-## Phase 1 — Bootstrap and I/O
-
-- uv project
-- package structure
-- CLI
-- config
-- `doctor`
-- `inspect`
-- BioIO CZI/TIFF reading
-- physical spacing
-- manifest build/validation
-- unit tests
-
-## Phase 2 — Pipeline skeleton and deterministic test segmenter
-
-- run directory
-- provenance
-- run state/resume
-- deterministic fixture segmenter
-- mask I/O
-- Parquet outputs
-- end-to-end synthetic integration test
-
-This phase must prove the application architecture without requiring Cellpose.
-
-## Phase 3 — Cellpose GPU backend
-
-- backend adapter
-- device validation
-- model lifetime
-- 2D
-- 3D
-- anisotropy support
-- segmentation normalization
-- timing
-- CUDA OOM behavior
-- model provenance
-
-## Phase 4 — Segmentation validation tooling
-
-- reference-mask comparison
-- IoU assignment
-- precision/recall/F1
-- split/merge reporting
-- validation report
-
-## Phase 5 — 2D measurements
-
-- morphology
-- intensity
-- texture
-- radial distribution
-- legacy measurement comparison
-- measurement dictionary
-- synthetic tests
-
-## Phase 6 — True 3D
-
-- volume
-- surface area
-- Z-depth
-- three principal axes
-- extent
-- sphericity
-- anisotropic synthetic tests
-
-## Phase 7 — QC
-
-- image-level QC
-- object flags
-- manual annotation persistence
-- napari viewer
-- static QC report
-- stratified overlay sampling
-
-## Phase 8 — Multi-channel
-
-- H3K9Ac
-- H3K9me3
-- Lamin A/C shell/core
-- MitoTracker perinuclear features
-- channel consistency checks
-
-## Phase 9 — Production hardening
-
-- benchmark command
-- resume/idempotency checks
-- atomic writes
-- final docs
-- CI
-- example configs
-- comprehensive command help
-- performance pass based on benchmarks only
+# 52. (Intentionally empty)
 
 ---
 
 # 53. Acceptance tests / Definition of Done
 
-The project is complete only when all of the following are true.
+The pipeline meets this specification when all of the following are true.
 
 ## 53.1 Installation
 
@@ -2408,7 +2162,7 @@ On a CUDA-capable machine with model weights available:
 
 ## 53.10 Documentation
 
-README, architecture, measurement dictionary, segmentation validation, QC protocol, AGENTS.md, CLAUDE.md, and decision records are complete.
+README, architecture, measurement dictionary, segmentation validation, QC protocol, AGENTS.md and decision records are complete.
 
 ---
 
@@ -2463,7 +2217,7 @@ uv run nuclear-morphometry qc-report results/<run-id>
 # 8. Prepare table for downstream statistics
 uv run nuclear-morphometry prepare-analysis results/<run-id>
 
-# 9. Optionally archive full source hashes for final thesis run
+# 9. Optionally archive full source hashes for the final run
 uv run nuclear-morphometry finalize-run results/<run-id> --hash-inputs
 ```
 
@@ -2512,9 +2266,9 @@ The application should not reproduce the old architecture in which a single CPU 
 
 ---
 
-# 57. Final implementation-agent checklist
+# 57. Feature checklist
 
-Before declaring completion, verify explicitly:
+The feature set this specification calls for:
 
 - [ ] Full repository implemented, not scaffolding.
 - [ ] `uv.lock` committed.
@@ -2549,7 +2303,6 @@ Before declaring completion, verify explicitly:
 - [ ] QC protocol completed.
 - [ ] architecture doc completed.
 - [ ] AGENTS.md completed.
-- [ ] CLAUDE.md completed.
 - [ ] decision records completed.
 - [ ] GitHub Actions CI implemented.
 - [ ] Ruff passes.
@@ -2560,19 +2313,19 @@ Before declaring completion, verify explicitly:
 
 ---
 
-# 58. Final instruction
+# 58. Design intent
 
-Build this as **small, explicit, reproducible scientific software**, not as a framework.
+The pipeline is meant to be **small, explicit, reproducible scientific software**, not a framework.
 
-The correct result is not the repository with the most abstractions or dependencies. The correct result is the repository that lets the researcher:
+The measure of success is not the number of abstractions or dependencies but whether the researcher can:
 
-- load the actual microscopy data safely;
+- load the microscopy data safely;
 - segment nuclei quickly on the GPU;
 - preserve abnormal nuclear morphology;
 - measure 2D and calibrated 3D geometry correctly;
 - audit every technical exclusion;
 - visually verify segmentation;
 - trace every nucleus to its biological replicate;
-- reproduce the exact final thesis run months later.
+- reproduce the exact final run months later.
 
 If an implementation choice conflicts with that goal, choose the simpler scientifically defensible option and document it.

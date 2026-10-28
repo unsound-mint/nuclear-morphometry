@@ -19,7 +19,7 @@ even when describing what is clearly the same underlying decision
 Nothing in the spec states explicitly whether these are the same boolean
 computed twice, computed once and copied, or genuinely different values at
 different pipeline stages -- and if implemented inconsistently by
-independently-working modules (or agents), that ambiguity is exactly the
+independently-working modules, that ambiguity is exactly the
 kind of thing that surfaces late, as a confusing mismatch between
 `nuclei.parquet` and `analysis_ready.parquet`.
 

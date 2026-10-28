@@ -7,7 +7,7 @@ Accepted.
 ## Context
 
 Some TIFF exports can genuinely lose physical calibration. A manifest fallback is needed for
-those files. The current thesis MetaMorph TIFFs are not in that category: their proprietary
+those files. The current MetaMorph TIFFs are not in that category: their proprietary
 page metadata is now read directly as documented in decision 0015.
 
 ## Decision

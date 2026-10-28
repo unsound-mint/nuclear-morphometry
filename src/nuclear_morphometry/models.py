@@ -1,7 +1,7 @@
 """Core domain model.
 
 These types encode the scientific invariants of the pipeline (see
-``Nuclear_Morphometry_Complete_Build_Spec.md`` sections 1.3 and 8): physical
+``docs/design-spec.md`` sections 1.3 and 8): physical
 calibration is never assumed, and every nucleus stays traceable to its
 biological replicate (SortID) and source image.
 """

@@ -4,7 +4,7 @@ Border truncation is the only automatic exclusion computed here. Shape-based
 properties (eccentricity, solidity, circularity, elongation, irregularity)
 must NEVER drive automatic exclusion -- see AGENTS.md and
 docs/decisions/0002-no-phenotype-based-qc-filtering.md. This is the software
-encoding of the thesis's central QC requirement.
+encoding of the project's central QC requirement.
 """
 
 from __future__ import annotations

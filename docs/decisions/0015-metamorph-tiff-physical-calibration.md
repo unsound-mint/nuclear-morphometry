@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-The thesis TIFFs were written by MetaMorph/MetaSeries. They have no standard TIFF
+The project's TIFFs were written by MetaMorph/MetaSeries. They have no standard TIFF
 `XResolution`, `YResolution`, or `ResolutionUnit` tags, so BioIO reports physical spacing as
 unknown. The calibration is nevertheless present in each page's XML `ImageDescription`:
 
@@ -34,7 +34,7 @@ both exist.
 
 ## Consequences
 
-- The current multi-plane thesis TIFFs resolve to X=0.183 um, Y=0.183 um, Z=0.1 um directly
+- The current multi-plane TIFFs resolve to X=0.183 um, Y=0.183 um, Z=0.1 um directly
   from their own metadata.
 - Raw TIFFs remain unchanged.
 - Physical calibration is included in field outputs and run provenance through the existing

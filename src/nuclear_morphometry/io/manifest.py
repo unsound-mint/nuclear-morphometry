@@ -40,7 +40,7 @@ SPACING_OVERRIDE_COLUMNS: tuple[str, ...] = (
 
 _IMAGE_EXTENSIONS: frozenset[str] = frozenset({".czi", ".tif", ".tiff"})
 
-# Default thesis filename convention, e.g.:
+# Default filename convention, e.g.:
 #   SW620_Sort01_low_48h_Field003_Hoechst.tif
 #   SW620_Sort01_low_48h_Field003_LaminA-C.tif
 DEFAULT_FILENAME_PATTERN: re.Pattern[str] = re.compile(

@@ -2,7 +2,7 @@
 
 Built against the installed Cellpose 4.2.1.1 (Cellpose-SAM), which is a
 materially different API from the tissue-specific-model generation
-(``model_type="nuclei"`` etc.) the build spec's phrasing assumes -- see
+(``model_type="nuclei"`` etc.) the design spec's phrasing assumes -- see
 ``docs/decisions/0001-cellpose-segmentation-backend.md`` for the full
 investigation. Key consequences applied here:
 
@@ -75,7 +75,7 @@ def _resolve_model_name(model: str, *, allow_unvalidated_model: bool) -> str:
             'segmentation.model = "auto" resolved to the unvalidated demo default '
             "%r because this run explicitly allowed it (--allow-unvalidated-model). "
             "This model has not been validated against a reference mask set for this "
-            "dataset (spec section 14). Do not use this for a final thesis run.",
+            "dataset (spec section 14). Do not use this for a final analysis run.",
             DEMO_DEFAULT_MODEL,
         )
         return DEMO_DEFAULT_MODEL

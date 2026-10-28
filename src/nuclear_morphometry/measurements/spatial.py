@@ -86,7 +86,7 @@ def measure_perinuclear_rings(
 
     Note: this recomputes a full-image boolean mask per object, so cost
     scales with ``n_objects * image_size``. Acceptable for the validation-
-    and thesis-scale fields this targets; revisit if profiling on a much
+    and study-scale fields this targets; revisit if profiling on a much
     larger dataset shows otherwise (see AGENTS.md: profile before
     optimizing).
     """

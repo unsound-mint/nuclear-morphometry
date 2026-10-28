@@ -59,7 +59,7 @@ concrete and testable.
   `MITOTRACKER_RING_BOOLEAN_SUFFIXES`), simpler tests, and no ambiguity
   about which two rings a ratio compares.
 - Cost scales with `n_objects x image_size` (a full-image boolean mask is
-  recomputed per object) -- acceptable at validation/thesis field scale;
+  recomputed per object) -- acceptable at validation field scale;
   not benchmarked against a much larger dataset. Revisit only with
   profiling evidence (AGENTS.md: profile before optimizing), not
   speculatively.
