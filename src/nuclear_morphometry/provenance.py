@@ -17,11 +17,17 @@ from typing import Any
 
 from nuclear_morphometry.config import Config
 
+# Git state describes the code that ran, so it is read from the package's own
+# source tree, not the process cwd (which is usually the data directory).
+_PACKAGE_DIR = Path(__file__).resolve().parent
 
-def current_git_commit() -> str | None:
+
+def _git(*args: str) -> str | None:
+    """Stdout of a git command run in the package directory, or None on any error."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", *args],
+            cwd=_PACKAGE_DIR,
             capture_output=True,
             text=True,
             timeout=5,
@@ -29,21 +35,29 @@ def current_git_commit() -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return result.stdout.strip() if result.returncode == 0 else None
+    return result.stdout if result.returncode == 0 else None
 
 
-def _git_dirty() -> bool:
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0 and bool(result.stdout.strip())
+def _in_package_repo() -> bool:
+    """True when the package sits in its own checkout, not in an unrelated enclosing repo
+    (e.g. a non-editable install inside some project's .venv)."""
+    top = _git("rev-parse", "--show-toplevel")
+    return top is not None and (Path(top.strip()) / "src" / "nuclear_morphometry").is_dir()
+
+
+def current_git_commit() -> str | None:
+    if not _in_package_repo():
+        return None
+    out = _git("rev-parse", "HEAD")
+    return out.strip() if out else None
+
+
+def _git_dirty() -> bool | None:
+    """Whether the package checkout has uncommitted changes; None when unknown."""
+    if not _in_package_repo():
+        return None
+    out = _git("status", "--porcelain")
+    return None if out is None else bool(out.strip())
 
 
 def package_version(name: str) -> str | None:

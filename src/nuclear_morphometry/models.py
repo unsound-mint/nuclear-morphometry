@@ -136,4 +136,4 @@ class RunIdentity(BaseModel):
     run_id: str
     config_hash: str
     git_commit: str | None
-    git_dirty: bool = False
+    git_dirty: bool | None = None  # None: unknown (not a git checkout, or git failed)
