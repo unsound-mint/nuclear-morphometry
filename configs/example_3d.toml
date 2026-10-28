@@ -1,5 +1,5 @@
 [experiment]
-name = "thesis_3d_example"
+name = "3d_example"
 manifest = "manifest.csv"
 output_root = "results"
 

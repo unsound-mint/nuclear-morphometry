@@ -1,5 +1,5 @@
 [experiment]
-name = "thesis_multichannel_example"
+name = "multichannel_example"
 manifest = "manifest.csv"
 output_root = "results"
 

@@ -1,6 +1,6 @@
 # Real-data readiness checklist
 
-The software implementation and the scientific acceptance of a thesis run are separate
+The software implementation and the scientific acceptance of a final analysis run are separate
 milestones. Do not cite measurements from a run until every applicable item below is closed.
 
 ## 1. Verify authoritative acquisition metadata
@@ -30,7 +30,7 @@ Each image must have real values for `cell_line`, `sort_id`, `condition`, `timep
 
 The final experiment needs SW480 and SW620; low, high, and bulk; and at least three
 independent sorts. A manifest can include preliminary or incomplete data, but it must not be
-described as the final thesis dataset.
+described as the final dataset.
 
 ```bash
 uv run nuclear-morphometry manifest validate manifest.csv

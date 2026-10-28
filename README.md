@@ -1,7 +1,7 @@
 # nuclear-morphometry
 
-GPU-first, reproducible pipeline for 2D and true-3D analysis of colorectal-cancer nuclei
-from confocal microscopy, supporting an undergraduate BIOL 490 Honors Thesis.
+GPU-first, reproducible nuclear morphometry pipeline for 2D and true-3D analysis of nuclei
+from confocal microscopy.
 
 ## What this does
 
@@ -15,14 +15,15 @@ Given Zeiss CZI or TIFF microscopy files and an experimental manifest, `nuclear-
    merges, splits, and other failures, without excluding biologically extreme shapes.
 5. Writes tidy per-nucleus and per-field Parquet tables, plus full run provenance.
 
-See `docs/Nuclear_Morphometry_Complete_Build_Spec.md` for the complete specification and `AGENTS.md`
-for engineering rules and what's implemented vs. still pending.
+See `docs/design-spec.md` for the specification and `AGENTS.md` for contributor rules.
+Segmentation has so far been exercised on synthetic data only: there is no real reference
+mask set yet (see Limitations and `docs/real-data-readiness.md`).
 
 ## Scientific scope and non-goals
 
-This is thesis-specific software, not a general microscopy platform (see spec section 51
-for the explicit out-of-scope list: no multi-GPU scheduling, no image registration, no
-automatic biological conclusions, no qPCR/AFM analysis).
+This is focused software, not a general microscopy platform (see spec section 51 for the
+explicit out-of-scope list: no multi-GPU scheduling, no image registration, no automatic
+biological conclusions).
 
 **Read before analyzing real data:**
 
@@ -74,7 +75,7 @@ spacing (with a warning if calibration looks fabricated or is missing — see
 ## Manifest
 
 Analysis never parses filenames at run time — it always reads a long-form manifest (one
-row per image channel). Build a draft from the thesis filename convention and validate it:
+row per image channel). Build a draft from the default filename convention and validate it:
 
 ```bash
 uv run nuclear-morphometry manifest build /data/samples --output manifest.csv
@@ -104,7 +105,7 @@ and manifest calibration must agree when both exist; a conflict fails loudly. Se
 ```bash
 # 2D preliminary-replication starting point: explicitly max-projects Z-stacks and
 # enables the predefined texture/radial feature family. Validate projection and
-# texture scales against the legacy CellProfiler run before thesis use.
+# texture scales against the legacy CellProfiler run before reporting results.
 uv run nuclear-morphometry run configs/example_2d.toml
 
 # True 3D (requires real, non-fabricated X/Y/Z physical spacing; never assumes 1/1/1):
@@ -130,7 +131,7 @@ partial output file that a retry simply overwrites.
 ## Segmentation validation
 
 Segmentation quality is a scientific gate, not optional tooling (spec section 14) — do not
-trust a segmentation backend/model for real thesis analysis without running this first.
+trust a segmentation backend/model for real analysis without running this first.
 
 ### Building the reference set
 
@@ -280,6 +281,26 @@ uv run nuclear-morphometry export-csv results/<run-id>          # re-export nucl
 uv run nuclear-morphometry finalize-run results/<run-id> --hash-inputs   # archival provenance
 ```
 
+## Limitations
+
+- **Segmentation is not validated on real data.** No manually corrected reference mask set
+  exists yet, so Cellpose accuracy on real nuclei is unmeasured. 3D Cellpose segmentation
+  showed over-segmentation on some synthetic volumes
+  (`docs/decisions/0008-cellpose-3d-oversegmentation.md`); check object counts and masks of
+  a 3D run with `validate-segmentation` and overlays before trusting them.
+- **Non-square pixels (2D).** Major/minor axis lengths and perimeter are computed in pixel
+  space and converted with `sqrt(x_um * y_um)`; this is exact only for square pixels.
+  Area and centroids use the true per-axis calibration.
+- **3D sphericity.** Surface area comes from a marching-cubes mesh of a Gaussian-smoothed
+  mask (`sigma = 1` voxel, in voxel-index space), tuned on isotropic synthetic spheres. It is
+  not corrected for strongly anisotropic voxels and understates surface area for angular
+  shapes (`docs/decisions/0007-marching-cubes-surface-area-smoothing.md`). Volume and axis
+  lengths are unsmoothed and unaffected.
+- **Sphericity is `None`** for border-touching objects (the true surface is unknown) and for
+  objects too small to reconstruct.
+- 3D texture is disabled by default; texture scales and Lamin/MitoTracker ring widths are
+  starting points, not validated biological choices.
+
 ## Output layout
 
 ```text
@@ -302,10 +323,10 @@ technical tags into a derived `analysis_ready.parquet` and computes `include_def
 
 ## Reproducibility
 
-Every run's `provenance.json` records the git commit and dirty-tree status, config and
-manifest SHA-256 hashes, Python/package/Torch/Cellpose versions, GPU identity, and the
+Every run's `provenance.json` records the git commit and dirty-tree status of the package checkout (both `null` when it
+is not a git checkout or git fails), config and manifest SHA-256 hashes, Python/package/Torch/Cellpose versions, GPU identity, and the
 resolved segmentation parameters. `finalize-run --hash-inputs` additionally hashes the raw
-source files for archival/final-thesis runs (skipped by default since it can be slow for
+source files for archival/final runs (skipped by default since it can be slow for
 large files).
 
 ## Further reading
@@ -314,7 +335,9 @@ large files).
 - `docs/measurement-dictionary.md` — every implemented column: units, definition, source
   channel, primary/secondary status, caveats.
 - `docs/real-data-readiness.md` — the acquisition inputs, validation gates, and acceptance
-  artifacts required before a thesis run can be trusted.
+  artifacts required before a final analysis run can be trusted.
 - `docs/decisions/` — ADRs for every scientifically meaningful assumption or third-party
   API adaptation made during implementation.
-- `AGENTS.md` — engineering rules and current implementation status.
+- `docs/design-spec.md` — the pipeline specification (stages, data model, QC policy);
+  source comments cite it by section number.
+- `AGENTS.md` — contributor and development rules.

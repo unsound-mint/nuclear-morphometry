@@ -1,6 +1,6 @@
 # Measurement dictionary
 
-This document is part of the thesis reproducibility record (spec section 41). For every
+This document is part of the reproducibility record (spec section 41). For every
 exported scientific feature: exact column name, dimensionality, units, mathematical
 definition, source channel, biological rationale, primary/secondary status, and known
 caveats.
@@ -252,7 +252,7 @@ see `docs/decisions/0003-physical-units-for-3d.md`.
   (population covariance, `ddof=0`, matching the uniform-solid derivation): for eigenvalue
   `λ`, axis length `L = 2 * sqrt(5 * λ)` (spec section 17.4's given convention, since for a
   uniform solid ellipsoid the covariance along an axis is exactly `a²/5`).
-- Rationale: 3D elongation/size phenotype (spec section 1.1). Validated against both a
+- Rationale: 3D elongation/size phenotype (spec section 1.1). Checked against both a
   sphere (all three axes equal) and a known-axis-length synthetic ellipsoid.
 
 ### `extent`

@@ -1,5 +1,5 @@
 [experiment]
-name = "thesis_2d_example"
+name = "2d_example"
 manifest = "manifest.csv"
 output_root = "results"
 
@@ -31,7 +31,7 @@ intensity = true
 # Preserve the predefined preliminary Hoechst feature family. Pixel distances
 # 3/5/10/20 and five radial bins are legacy starting points, not yet accepted
 # biological scales for the final dataset; validate them against real X/Y
-# calibration and the CellProfiler parity export before thesis use.
+# calibration and the CellProfiler parity export before reporting results.
 texture_2d = true
 texture_distances_px = [3, 5, 10, 20]
 radial_distribution_2d = true
