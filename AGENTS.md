@@ -1,8 +1,23 @@
 # Project
 
-GPU-first microscopy analysis pipeline for an undergraduate BIOL 490 thesis.
+GPU-first nuclear morphometry pipeline for confocal microscopy (2D and true 3D).
 
-This is thesis-specific scientific software, not a general image-analysis framework.
+This is focused scientific software, not a general image-analysis framework. The design is
+in `docs/design-spec.md`; read `docs/measurement-dictionary.md` and the relevant files under
+`docs/decisions/` before changing measurements or QC.
+
+## Development commands
+
+```bash
+uv sync --extra dev --extra gpu --extra gui
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run pytest tests/unit tests/integration -q -m "not gpu and not cellpose_model and not gui"
+```
+
+`gpu` and `cellpose_model` tests need a CUDA device and downloaded weights; `gui` tests need
+Qt (CI runs them under `xvfb-run`). Tests skip cleanly when their requirement is missing.
 
 ## Priorities
 
@@ -18,7 +33,6 @@ Do not trade scientific correctness for performance.
 
 - Read the nearest relevant implementation and tests first.
 - Do not introduce a dependency unless existing dependencies cannot solve the problem cleanly.
-- For non-trivial changes, state the intended approach and invariants before implementation.
 - Profile before performance optimization.
 - Do not change validated scientific semantics as part of refactoring.
 
@@ -72,8 +86,8 @@ run over a single empty field.
 - Bound memory use.
 - Do not optimize by silently downsampling or changing scientific semantics.
 - Performance-sensitive changes require benchmark evidence.
-- Cellpose in this environment resolved to 4.2.1.1 (Cellpose-SAM), not the tissue-specific-model
-  generation the original spec assumed. See
+- The backend targets Cellpose 4.x (Cellpose-SAM), which has no tissue-specific model
+  generation. See
   `docs/decisions/0001-cellpose-segmentation-backend.md` before touching
   `segmentation/cellpose_backend.py` -- `model_type`/`diam_mean` are dead
   parameters in this version, and `model = "auto"` has no "nuclei" model to fall back to.
@@ -115,61 +129,3 @@ A change is complete only when:
 - provenance remains complete
 - performance has not materially regressed without justification
 - behavior/measurement documentation is updated
-
-## Current state
-
-Implemented: project scaffold, domain model, config, manifest build/validate, BioIO CZI/TIFF
-I/O with physical calibration, mask persistence, the deterministic `FixtureSegmenter`, the
-Cellpose-SAM backend (`segmentation/cellpose_backend.py`), 2D and 3D morphology, intensity,
-2D texture, border-only QC flags, image-level QC metrics (`qc/image_metrics.py`, spec 21,
-measurement-only), manual QC annotation storage (`qc/annotations.py`, spec 22.2/23 --
-napari-independent JSON store) plus the interactive napari QC viewer itself
-(`qc/viewer.py` + `qc` CLI, spec 23/53.9 -- click-to-select object + key measurements, keyboard
-shortcuts and a dock widget for the five manual tags, a Points-layer overlay of existing
-annotations that reloads on open, uneditable Labels/Points layers so nothing on disk is ever
-touched; the only module allowed to import napari/Qt, imported lazily by `cli.py`),
-segmentation validation tooling (`segmentation/validation.py` + `validate-segmentation` CLI,
-spec 14 -- IoU matrix + Hungarian matching, precision/recall/F1 with undefined-not-zero
-semantics when a count is 0, a containment-based (not IoU-based -- see
-`docs/decisions/0008`) disabled-by-default split/merge heuristic), a static QC report
-(`qc/report.py` + `qc-report` CLI, spec 24 -- seeded stratified overlay sampling across
-cell line/condition/SortID, self-contained HTML, no report framework), multi-channel
-measurements (spec 25, Phase 8 -- `measurements/lamin.py` shell/core via
-physically-calibrated erosion, `measurements/spatial.py` MitoTracker perinuclear rings via
-nearest-nucleus disambiguation, see `docs/decisions/0009`), 2D radial intensity
-distribution (`measurements/radial.py`, spec 20 -- a from-scratch, equal-pixel-count
-boundary-distance-ranked binning, not CellProfiler parity, see `docs/decisions/0010`),
-per-stage performance benchmarking (`pipeline/benchmark.py` + `benchmark` CLI, spec 32 --
-I/O, segmentation normalization, GPU segmentation, mask serialization, morphology,
-intensity, texture, radial distribution, additional channels, QC, row assembly, and output
-timing per field, plus peak RSS/CUDA memory, image dimensions, and object counts; saves a
-JSON report
-and a Parquet table for before/after comparison), legacy CellProfiler measurement-parity
-comparison (`compare_measurements.py` + `compare-measurements` CLI, spec 16.1/28 -- joins on
-exact object-key match across two tables measuring the *same masks*, reports per-mapped-
-column absolute/relative difference and Pearson correlation with undefined-not-fabricated-
-zero semantics; does not attempt fuzzy object matching), atomic per-field pipeline execution
-with resume, Parquet export, `prepare-analysis`, provenance, CI, and the full CLI surface
-(unimplemented commands fail loudly rather than silently stubbing).
-
-**2D Cellpose segmentation is verified working end-to-end on real GPU hardware in this
-session** (`tests/integration/test_cellpose_gpu.py`). **3D Cellpose segmentation initially
-showed severe over-segmentation (25-434 spurious objects for a single synthetic sphere);
-this was traced to a real bug** (un-normalized input reaching Cellpose, since
-`CellposeSegmenter` always calls `eval(normalize=False)` trusting the pipeline to have
-normalized first) **and is now fixed at two layers**: `Config` rejects
-`backend = "cellpose"` with `normalize_for_segmentation = false` outright, and the
-realistic-signal synthetic case (smoothly-varying intensity + noise, not a hard binary
-edge) segments correctly once normalized. Two pathological binary-edge synthetic shapes
-still fragment unexplained, but do not resemble real fluorescence signal — see
-`docs/decisions/0008-cellpose-3d-oversegmentation.md`. Confidence in 3D is higher than
-before, but `validate-segmentation` against a real reference mask set (spec section 14)
-is still required before trusting a 3D analysis run's object count or masks.
-
-`measurements.texture_distances_um` (physical-scale texture mode, spec 19.4) is wired into the
-pipeline: `_process_field` converts per-field, names columns by the configured um value (not
-the per-field resolved pixel distance), and requires square X/Y pixels for the field being
-measured. See `docs/decisions/0012-texture-um-distance-column-naming.md`.
-
-With this, `Nuclear_Morphometry_Complete_Build_Spec.md` section 52's phase plan is fully
-implemented.
