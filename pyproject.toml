@@ -1,10 +1,11 @@
 [project]
 name = "nuclear-morphometry"
 version = "0.1.0"
-description = "GPU-first microscopy analysis pipeline for BIOL 490 thesis (colorectal-cancer nuclei, 2D/3D)"
+description = "GPU-first nuclear morphometry pipeline for confocal microscopy (2D and true 3D)"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-license = { text = "Proprietary" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.13",
